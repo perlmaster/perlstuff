@@ -9,5 +9,6 @@ ziplist.pl - do a directory listing of a ZIP archive file
 mydesc2.pl - describe the structure of a MYSQL database table
 list-table.pl - list the contents of a database table
 perl-funcs.pl - pler functions cross reference
+findsub.pl - find where a perl function is defined
 
 the other files in this repository are files that are "required" by the above named scripts
