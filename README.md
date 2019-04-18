@@ -11,5 +11,6 @@ list-table.pl - list the contents of a database table
 perl-funcs.pl - pler functions cross reference
 findsub.pl - find where a perl function is defined
 find-href-tags.pl - extract HREF tag information from a bookmarks file
+findmissing.pl - find all elements in the 1st list not in the 2nd list
 
 the other files in this repository are files that are "required" by the above named scripts
