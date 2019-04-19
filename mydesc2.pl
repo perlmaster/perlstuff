@@ -8,7 +8,7 @@
 #
 # Created   : October 30, 2005
 #
-# Purpose   : Describe the columns in a MySQL database table.
+# Purpose   : Describe the structure of mysql database tables
 #
 # Notes     : (none)
 #
@@ -27,9 +27,9 @@ require "time_date.pl";
 require "mysql_utils.pl";
 require "print_lists.pl";
 
-my ( %options , $owner , $dbh );
+my ( $owner , $dbh );
 
-my $dbname = "qwlc";
+my %options = ( "d" => 0 , "h" => 0 , "D" => "qwlc" );
 
 ######################################################################
 #
@@ -82,7 +82,7 @@ sub describe_table
 	} # FOREACH
 	@arrays = ( \@colnames , \@data_types , \@maxlen , \@nulls , \@col_key , \@extra , \@comments );
 	@headers = ( "Column name" , "Data Type" , "Maxlen" , "Nullable ?" , "Key" , "Extra" , "Comment" );
-	print_lists(\@arrays,\@headers,"=");
+	print_lists_with_trim(\@arrays,\@headers,"=");
 
 	return;
 } # end of describe_table
@@ -91,7 +91,7 @@ sub describe_table
 #
 # Function  : MAIN
 #
-# Purpose   : Describe the columns in a database table.
+# Purpose   : Describe the structure of mysql database tables
 #
 # Inputs    : @ARGV - optional arguments
 #
@@ -111,14 +111,17 @@ MAIN:
 	my ( @colnames , $statement , $table_sth , $qual , $name , $remarks );
 	my ( $type , @matched , $match , $status , $pattern , $clock );
 
-	%options = ( "d" => 0 , "p" => 0 , "D" => $dbname  );
-	$status = getopts("dpD:",\%options);
+	$status = getopts("hdD:",\%options);
+	if ( $options{"h"} ) {
+		display_pod_help($0);
+		exit 0;
+	} # IF
 	unless ( $status ) {
-		die("Usage : $0 [-dp] [-D Database] table [... table]\n");
+		die("Usage : $0 [-hd] [-D database] table [... table]\n");
 	} # UNLESS
 
 	%attr = ( "PrintError" => 0 , "RaiseError" => 0 );
-	$dbh = mysql_connect_to_db($options{'D'}, "127.0.0.1", "username", "password", \$errmsg, \%attr);
+	$dbh = mysql_connect_to_db($options{'D'}, "127.0.0.1", "root", "archer-nx01", \$errmsg, \%attr);
 	unless ( defined $dbh ) {
 		die("Can't connect to database\n${errmsg}\n\n");
 	} # UNLESS
@@ -140,3 +143,39 @@ MAIN:
 
 	exit 0;
 } # end of MAIN
+__END__
+=head1 NAME
+
+mydesc2.pl - Describe the structure of mysql database tables
+
+=head1 SYNOPSIS
+
+mydesc2.pl [-hd] [-D database] table [... table]
+
+=head1 DESCRIPTION
+
+Describe the structure of mysql database tables
+
+=head1 PARAMETERS
+
+  dirname - name of directory to be processed
+
+=head1 OPTIONS
+
+  -h - produce this summary
+  -d - activate debugging mode
+
+=head1 EXAMPLES
+
+mydesc2.pl
+
+=head1 EXIT STATUS
+
+ 0 - successful completion
+ nonzero - an error occurred
+
+=head1 AUTHOR
+
+Barry Kimelman
+
+=cut
