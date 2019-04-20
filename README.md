@@ -15,5 +15,10 @@ findmissing.pl - find all elements in the 1st list not in the 2nd list
 findcommon.pl - find all elements common to 2 lists
 find-empty.pl - find empty files in a directory
 find-modified.pl - find files modified since a specified date
+ping_list.pl - ping a list of ip addresses
+sys-processes.pl - display a list of system processes for Windows
+sys-services.pl - display a list of system services for Windows
+sys-tasklist.pl - display a list of tasks for Windows
+
 
 the other files in this repository are files that are "required" by the above named scripts
