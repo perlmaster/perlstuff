@@ -52,9 +52,8 @@ use File::Basename;
 use FindBin;
 use lib $FindBin::Bin;
 
-require "print_lists.pl";
-require "comma_format.pl";
-require "format_megabytes.pl";
+require "list_zip_file_members.pl";
+require "display_pod_help.pl";
 
 my %options = ( "d" => 0 , "h" => 0 , "L" => -1 , "b" => -1 , "B" => -1 , "m" => 0 );
 
@@ -104,7 +103,7 @@ sub search_dirtree
 		} # IF
 		else {
 			if ( $entry =~ m/\.zip$/i ) {
-				process_zip_file($path,$pattern);
+				list_zip_file_members($path,$pattern,{ "m" => $options{'m'} },\*STDOUT);
 			} # IF
 		} # ELSE
 	} # FOREACH
@@ -114,79 +113,6 @@ sub search_dirtree
 
 	return;
 } # end of search_dirtree
-
-######################################################################
-#
-# Function  : process_zip_file
-#
-# Purpose   : Process a ZIP file
-#
-# Inputs    : $_[0] - name of ZIP file
-#             $_[1] - member name pattern
-#
-# Output    : (none)
-#
-# Returns   : nothing
-#
-# Example   : process_zip_file($zipfile,$pattern);
-#
-# Notes     : (none)
-#
-######################################################################
-
-sub process_zip_file
-{
-	my ( $zipfile , $pattern ) = @_;
-	my ( @members , @filenames , @dates , @sizes , $num_members , $num_matched );
-	my ( $status , $filename , $basename , $td , $zip , @index , $bytes );
-
-#                   'externalFileName' => 'foo.zip',
-#                   'fileName' => 'charset.conv',
-#                   'lastModFileDateTime' => 1149111825,
-	$zip = Archive::Zip->new();
-	if ( $zip->read( $zipfile ) != AZ_OK ) {
-		die("Error reading zip file '$zipfile'\n");
-	} # IF
-	@members = $zip->members();
-	@filenames = ();
-	@dates = ();
-	@sizes = ();
-	$num_members = scalar @members;
-	$num_matched = 0;
-	$status = 0;
-	@index = ();
-	foreach my $element( @members ) {
-		$status += 1;
-		$filename = $element->{'fileName'};
-		$basename = basename($filename);
-		if ( $basename =~ m/${pattern}/i ) {
-			$bytes = $element->{'uncompressedSize'};
-			if ( $options{'b'} > 0 && $options{'b'} > $bytes ) {
-				next;
-			} # IF
-			if ( $options{'B'} > 0 && $options{'B'} < $bytes ) {
-				next;
-			} # IF
-			$num_matched += 1;
-			push @index,$num_matched;
-			push @filenames,$filename;
-			if ( $options{'m'} ) {
-				push @sizes,format_megabytes($bytes,0);
-			} # IF
-			else {
-				push @sizes,comma_format($bytes);
-			} # ELSe
-			$td = localtime($element->lastModTime());
-			push @dates,$td;
-		} # IF
-	} # FOREACH
-
-	@index = map { "[$_ / $num_matched]" } (1 .. $num_matched);
-	print "\n$zipfile : $num_matched of the $num_members members were matched by '$pattern'\n\n";
-	print_lists([ \@index , \@filenames , \@sizes , \@dates],[ "#" , "Member","Size","Date" ],"=",\*STDOUT);
-
-	return;
-} # end of process_zip_file
 
 ######################################################################
 #
@@ -212,14 +138,7 @@ MAIN:
 
 	$status = getopts("hdb:B:m",\%options);
 	if ( $options{"h"} ) {
-		if ( $^O =~ m/MSWin/ ) {
-# Windows stuff goes here
-			system("pod2text $0 | more");
-		} # IF
-		else {
-# Non-Windows stuff (i.e. UNIX) goes here
-			system("pod2man $0 | nroff -man | less -M");
-		} # ELSE
+		display_pod_help($0);
 		exit 0;
 	} # IF
 	unless ( $status && 0 < scalar @ARGV ) {
@@ -232,7 +151,7 @@ MAIN:
 		search_dirtree($zipfile,$pattern,1);
 	} # IF
 	else {
-		process_zip_file($zipfile,$pattern);
+		list_zip_file_members($zipfile,$pattern,{ "m" => $options{'m'} },\*STDOUT);
 	} # ELSE
 
 	exit 0;
