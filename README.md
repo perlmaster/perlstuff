@@ -19,6 +19,8 @@ ping_list.pl - ping a list of ip addresses
 sys-processes.pl - display a list of system processes for Windows
 sys-services.pl - display a list of system services for Windows
 sys-tasklist.pl - display a list of tasks for Windows
+zipwrite.pl - write files to a ZIP file
+zipbackup.pl - backup an entire directory tree to a ZIP file
 
 
 the other files in this repository are files that are "required" by the above named scripts
