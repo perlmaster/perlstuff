@@ -22,6 +22,8 @@ sys-tasklist.pl - display a list of tasks for Windows
 zipwrite.pl - write files to a ZIP file
 zipbackup.pl - backup an entire directory tree to a ZIP file
 antbuild.pl - produce output similar to the "ant -projecthjelp" command
+dir-missing.pl - find files in one directory missing from another directory
+dir-common.pl - find files common to 2 directories
 
 
 the other files in this repository are files that are "required" by the above named scripts
