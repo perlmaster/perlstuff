@@ -29,7 +29,7 @@ use File::Spec;
 # Inputs    : $_[0] - directory name
 #             $_[1] - reference to hash of options
 #                     { 'dot' - keep (1) or delete (0) '.' and '..' )
-#                     ( 'qual' - add (1) or do not add (0) )
+#                     ( 'qual' - add (1) or do not add (0) path qualification )
 #                     ( 'sort' - sort names (1) or do not sort names (0) )
 #             $_[2] - reference to array to receive list of directory entries
 #             $_[3] - reference to error message buffer
