@@ -26,6 +26,7 @@ use DBI;
 require "time_date.pl";
 require "mysql_utils.pl";
 require "print_lists.pl";
+require "display_pod_help.pl";
 
 my ( $owner , $dbh );
 
@@ -53,12 +54,16 @@ my %options = ( "d" => 0 , "h" => 0 , "D" => "qwlc" );
 sub describe_table
 {
 	my ( $table , $dbname ) = @_;
-	my ( %columns , @colnames , $numcols , $ref , @arrays , @headers );
+	my ( %columns , @colnames , $numcols , $ref , @arrays , @headers , $errmsg );
 	my ( @data_types , @nulls , @comments , @col_key , @extra , @maxlen , $enum );
 
 	print "\n==  $table [ $dbname ]  ==\n\n";
 
-	$numcols = get_table_columns_info($table,$dbname,\%columns,\@colnames);
+	$numcols = get_table_columns_info($table,$dbname,\%columns,\@colnames,\$errmsg);
+	if ( $numcols < 0 ) {
+		warn("\n$errmsg\n");
+		return;
+	} # IF
 
 	@data_types = ();
 	@nulls = ();
