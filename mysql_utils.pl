@@ -48,8 +48,8 @@ sub get_table_columns
 
 	$db = "INFORMATION_SCHEMA";	# your username (= login name  = account name )
 	$host = "127.0.0.1";    # = "localhost", the server your are on.
-	$user = "username";		# your Database name is the same as your account name.
-	$pwd = "password";	# Your account password
+	$user = "root";		# your Database name is the same as your account name.
+	$pwd = "archer-nx01";	# Your account password
 
 	# connect to the database.
 
@@ -106,12 +106,13 @@ sub get_table_columns
 #             $_[1] - name of schema containing table
 #             $_[2] - reference to hash to receive data
 #             $_[3] - reference to array to receive ordered list of column names
+#             $_[4] - reference to error message buffer
 #
 # Output    : (none)
 #
-# Returns   : Number of column names
+# Returns   : IF problem THEN negative ELSE number of columns
 #
-# Example   : $numcols = get_table_columns_info($table,$schema,\%columns,\@colnames);
+# Example   : $num_cols = get_table_columns_info($table,$schema,\%columns,\@colnames,\$errmsg);
 #
 # Notes     : (none)
 #
@@ -119,25 +120,25 @@ sub get_table_columns
 
 sub get_table_columns_info
 {
-	my ( $tablename , $schema , $ref_columns , $ref_colnames ) = @_;
+	my ( $tablename , $schema , $ref_columns , $ref_colnames , $ref_errmsg ) = @_;
 	my ( $dbh , $sql , $sth , $ref , $db , $host , $user , $pwd , @fields , $colname );
+
+	$$ref_errmsg = "";
+	%$ref_columns = ();
+	@$ref_colnames = ();
 
 	$db = "INFORMATION_SCHEMA";	# your username (= login name  = account name )
 	$host = "127.0.0.1";    # = "localhost", the server your are on.
-	$user = "username";		# your Database name is the same as your account name.
-	$pwd = "password";	# Your account password
+	$user = "root";		# your Database name is the same as your account name.
+	$pwd = "archer-nx01";	# Your account password
 
 	# connect to the database.
 	$dbh = DBI->connect( "DBI:mysql:$db:$host", $user, $pwd);
 	unless ( defined $dbh ) {
-		die(undef,"Error connecting to $db : $DBI::errstr\n");
+		$$ref_errmsg = "Error connecting to $db : $DBI::errstr";
+		return -1;
 	} # UNLESS
 
-## select TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,DATA_TYPE,ORDINAL_POSITION,IS_NULLABLE from columns
-##       where table_name = 'hockey_teams';
-
-	%$ref_columns = ();
-	@$ref_colnames = ();
 	$tablename = lc $tablename;
 	$schema = lc $schema;
 	$sql = "SELECT column_name,data_type,ordinal_position,is_nullable,column_comment,CHARACTER_MAXIMUM_LENGTH,NUMERIC_PRECISION,NUMERIC_SCALE,COLUMN_TYPE,COLUMN_KEY,EXTRA " .
@@ -146,14 +147,14 @@ sub get_table_columns_info
 
 	$sth = $dbh->prepare($sql);
 	unless ( defined $sth ) {
-		warn("can't prepare sql : $sql\n$DBI::errstr\n");
+		$$ref_errmsg = "can't prepare sql : $sql\n$DBI::errstr";
 		$dbh->disconnect();
-		die("Goodbye ...\n");
+		return -1;
 	} # UNLESS
 	unless ( $sth->execute ) {
-		warn("can't execute sql : $sql\n$DBI::errstr\n");
+		$$ref_errmsg = "can't execute sql : $sql\n$DBI::errstr";
 		$dbh->disconnect();
-		die("Goodbye ...\n");
+		return -1;
 	} # UNLESS
 
 	%$ref_columns = ();
@@ -208,8 +209,8 @@ sub find_matching_tables
 
 	$db = "INFORMATION_SCHEMA";	# your username (= login name  = account name )
 	$host = "127.0.0.1";    # = "localhost", the server your are on.
-	$user = "username";		# your Database name is the same as your account name.
-	$pwd = "password";	# Your account password
+	$user = "root";		# your Database name is the same as your account name.
+	$pwd = "archer-nx01";	# Your account password
 
 	# connect to the database.
 	$dbh = DBI->connect( "DBI:mysql:$db:$host", $user, $pwd);
