@@ -28,6 +28,7 @@ zipget.pl - extract specified members from a ZIP file
 zipfetch.pl - extract all members from a ZIP file
 notfound.pl - find files that do not contain a pattern
 get-links.pl - display a list of links from a web page
+drive-info.pl - use Perl to display space info for the specified drives
 
 
 the other files in this repository are files that are "required" by the above named scripts
