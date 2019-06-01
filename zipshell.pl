@@ -67,7 +67,7 @@ require "display_smooth_message_box.pl";
 
 my %options = (
 	"d" => 0 , "h" => 0 , "s" => 0 , "t" => 0 , "r" => 0 , "H" => 10 , "T" => 10 ,
-	"p" => "more" , "m" => 0 , "o" => 0 , "e" => "notepad"
+	"p" => "more" , "m" => 0 , "o" => 0 , "e" => "notepad" , "n" => 0 , "i" => 0
 );
 my %members = ();
 my @member_names = ();
@@ -79,8 +79,7 @@ my @main_menu = (
 	[ "List member names without attributes" , \&list_names_only ] ,
 	[ "Compact list member names without attributes" , \&list_compact_names_only ] ,
 	[ "List member names with attributes" , \&list_members_info ] ,
-	[ "List contents of member" , \&list_member_contents ] ,
-	[ "List contents of member with line numbers" , \&list_member_contents_with_line_numbers ] ,
+	[ "List contents of member" , \&list_member_contents_with_line_numbers ] ,
 	[ "List the first few lines of a member's content" , \&head_member ] ,
 	[ "List the last few lines of a member's content" , \&tail_member ] ,
 	[ "Save a member to disk" , \&save_member ] ,
@@ -89,6 +88,7 @@ my @main_menu = (
 	[ "Display commands history" , \&display_history ] ,
 	[ "Dump contents of member in hex" , \&hex_member_dump ] ,
 	[ "Edit a copy of the contents of a member" , \&edit_member ] ,
+	[ "Search member contents for lines containing a pattern" , \&grep_member ] ,
 );
 my $num_menu_entries = scalar @main_menu;
 my $CONSOLE;
@@ -527,49 +527,6 @@ sub list_members_info
 
 ######################################################################
 #
-# Function  : list_member_contents
-#
-# Purpose   : List contents of a member
-#
-# Inputs    : (none)
-#
-# Output    : member contents
-#
-# Returns   : nothing
-#
-# Example   : list_member_contents();
-#
-# Notes     : (none)
-#
-######################################################################
-
-sub list_member_contents
-{
-	my ( $ref , $content , $status );
-
-	if ( $num_parameters > 0 ) {
-		$ref = $members{$parameters[0]};
-		if ( defined $ref ) {
-			($content, $status) = $zip->contents( $parameters[0] );
-			unless ( open(PIPE,"|$options{'p'}") ) {
-				die("open of pipe to '$options{'p'}' failed : $!\n");
-			} # UNLESS
-			print PIPE "$content\n";
-			close PIPE;
-		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
-	} # IF
-	else {
-		print "Member name was not specified\n";
-	} # ELSE
-
-	return;
-} # end of list_member_contents
-
-######################################################################
-#
 # Function  : edit_member
 #
 # Purpose   : List contents of a member
@@ -698,7 +655,7 @@ sub hex_member_dump
 
 sub list_member_contents_with_line_numbers
 {
-	my ( $ref , @lines , $content , $status );
+	my ( $ref , @lines , $content , $status , $index );
 
 	if ( $num_parameters > 0 ) {
 		$ref = $members{$parameters[0]};
@@ -708,7 +665,12 @@ sub list_member_contents_with_line_numbers
 			unless ( open(PIPE,"|$options{'p'}") ) {
 				die("open of pipe to '$options{'p'}' failed : $!\n");
 			} # UNLESS
-			print PIPE join("\n",map { "$_ $lines[$_-1]" } (1 .. scalar @lines)),"\n";
+			for ( $index = 0 ; $index <= $#lines ; ++$index ) {
+				if ( $options{'n'} ) {
+					printf PIPE "%5d\t",1+$index;
+				} # IF
+				print PIPE "$lines[$index]\n";
+			} # FOR
 			close PIPE;
 		} # IF
 		else {
@@ -718,6 +680,63 @@ sub list_member_contents_with_line_numbers
 
 	return;
 } # end of list_member_contents_with_line_numbers
+
+######################################################################
+#
+# Function  : grep_member
+#
+# Purpose   : Search member contents for lines matching a pattern
+#
+# Inputs    : (none)
+#
+# Output    : matching member content lines
+#
+# Returns   : nothing
+#
+# Example   : grep_member();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub grep_member
+{
+	my ( $ref , @lines , $content , $status , $index , $name , $pattern );
+	my ( $count , $match );
+
+	if ( $num_parameters > 1 ) {
+		$name = shift @parameters;
+		$pattern = join("|",@parameters);
+		$ref = $members{$name};
+		if ( defined $ref ) {
+			($content, $status) = $zip->contents( $name );
+			@lines = split(/\n/,$content);
+			unless ( open(PIPE,"|$options{'p'}") ) {
+				die("open of pipe to '$options{'p'}' failed : $!\n");
+			} # UNLESS
+			$count = 0;
+			for ( $index = 0 ; $index <= $#lines ; ++$index ) {
+				if ( ($options{'i'} == 0 && $lines[$index] =~ m/${pattern}/) ||
+							($options{'i'} && $lines[$index] =~ m/${pattern}/i) ) {
+					$count += 1;
+					if ( $options{'n'} ) {
+						printf PIPE "%5d\t",1+$index;
+					} # IF
+					print PIPE "$lines[$index]\n";
+				} # IF
+			} # FOR
+			if ( $count == 0 ) {
+				print PIPE "No matches to '$pattern' found in '$name'\n";
+			} # IF
+			close PIPE;
+		} # IF
+		else {
+			print "'$name' is not a member in '$zipfile'\n";
+		} # ELSE
+	} # IF
+
+	return;
+} # end of grep_member
 
 ######################################################################
 #
@@ -837,13 +856,13 @@ MAIN:
 {
 	my ( $status , $errmsg , $choice , $ref , @list );
 
-	$status = getopts("dhstrH:T:p:moe:",\%options);
+	$status = getopts("dhstrH:T:p:moe:ni",\%options);
 	if ( $options{"h"} ) {
 		display_pod_help($0);
 		exit 0;
 	} # IF
 	unless ( $status && 0 < scalar @ARGV ) {
-		die("Usage : $0 [-dhstrmo] [-e editor] [-H head_size] [-T tail_size] [-p pager_command] zipfile\n");
+		die("Usage : $0 [-dhstrmon] [-e editor] [-H head_size] [-T tail_size] [-p pager_command] zipfile\n");
 	} # UNLESS
 	$sorting = $options{'s'} + $options{'t'};
 	if ( $sorting > 1 ) {
@@ -918,7 +937,7 @@ zipshell.pl - A shell for processing a ZIP file
 
 =head1 SYNOPSIS
 
-zipshell.pl [-hdstrmo] [-e editor] [-H head_size] [-T tail_size] [-p pager_command] zipfile
+zipshell.pl [-hdstrmoni] [-e editor] [-H head_size] [-T tail_size] [-p pager_command] zipfile
 
 =head1 DESCRIPTION
 
@@ -941,6 +960,8 @@ A shell for processing a ZIP file
   -m - when displaying member size display it in terms of TB/GB/MB/KB
   -o - when saving members to disk allow overwrite of existing files
   -e editor - program to be used to edit files
+  -n - display line numbers when displaying lines of text
+  -i - when searching member contents use case insensitive matching
 
 =head1 EXAMPLES
 
