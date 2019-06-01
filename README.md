@@ -30,6 +30,7 @@ notfound.pl - find files that do not contain a pattern
 get-links.pl - display a list of links from a web page
 drive-info.pl - use Perl to display space info for the specified drives
 zipshell.pl - a command shell to look at the data in a ZIP file archive
+flatfile-rdbms.zip - code and data to implement a GUI for a flatfile RDMBS in Perl using the Tk module. the gui.bat file will start the script
 
 
 the other files in this repository are files that are "required" by the above named scripts
