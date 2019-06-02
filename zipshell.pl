@@ -69,6 +69,16 @@ my %options = (
 	"d" => 0 , "h" => 0 , "s" => 0 , "t" => 0 , "r" => 0 , "H" => 10 , "T" => 10 ,
 	"p" => "more" , "m" => 0 , "o" => 0 , "e" => "notepad" , "n" => 0 , "i" => 0
 );
+my %toggle_options = (
+	"s" => "sort by size in ascending order" ,
+	"t" => "sort by time/date in ascending order" , "r" => "reverse sorting order" ,
+	"m" => "display member size in terms of TB/GB/MB/KB" ,
+	"o" => "when saving allow file overwrite" , "n" => "display lines with line numbers" ,
+	"i" => "use case insensitive searching"
+);
+my @toggle_options = values %toggle_options;
+my $toggle_maxlen;
+my @off_on = ( "off" , "on" );
 my %members = ();
 my @member_names = ();
 my @basenames = ();
@@ -89,6 +99,7 @@ my @main_menu = (
 	[ "Dump contents of member in hex" , \&hex_member_dump ] ,
 	[ "Edit a copy of the contents of a member" , \&edit_member ] ,
 	[ "Search member contents for lines containing a pattern" , \&grep_member ] ,
+	[ "Manage toggle option flags" , \&toggle_options ] ,
 );
 my $num_menu_entries = scalar @main_menu;
 my $CONSOLE;
@@ -117,6 +128,113 @@ my $single_quote = 1;
 my $double_quote = 2;
 my %quoted = ( "'" => $single_quote , '"' => $double_quote );
 my $tempdir;
+
+######################################################################
+#
+# Function  : debug_print
+#
+# Purpose   : Optionally print a debugging message.
+#
+# Inputs    : @_ - array of strings comprising message
+#
+# Output    : (none)
+#
+# Returns   : nothing
+#
+# Example   : debug_print("Process the files : ",join(" ",@xx),"\n");
+#
+# Notes     : The message is prefixed with "DEBUG : "
+#
+######################################################################
+
+sub debug_print
+{
+	my ( $message );
+
+	if ( $options{'d'} ) {
+		$message = join('',@_);
+		while ( $message =~ m/^\n/g ) {
+			print "\n";
+			$message = $';
+		} # WHILE
+		print "DEBUG : ${message}";
+	} # IF
+
+	return;
+} # end of debug_print
+
+######################################################################
+#
+# Function  : display_error
+#
+# Purpose   : Display an error message
+#
+# Inputs    : @_ - array of strings comprising message
+#
+# Output    : (none)
+#
+# Returns   : nothing
+#
+# Example   : display_error("Required parameter was omitted\n");
+#
+# Notes     : The message is prefixed with "ERROR : "
+#
+######################################################################
+
+sub display_error
+{
+	my ( $message );
+
+	$message = join('',@_);
+	while ( $message =~ m/^\n/g ) {
+		print "\n";
+		$message = $';
+	} # WHILE
+	print "Error : ${message}";
+
+	return;
+} # end of display_error
+
+######################################################################
+#
+# Function  : toggle_options
+#
+# Purpose   : Manage toggle option flags
+#
+# Inputs    : (none)
+#
+# Output    : appropriate messages
+#
+# Returns   : nothing
+#
+# Example   : toggle_options();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub toggle_options
+{
+	my ( $message , $opt );
+
+	if ( $num_parameters == 0 ) {
+		foreach my $flag ( keys %toggle_options ) {
+			printf "'%s' - %-${toggle_maxlen}.${toggle_maxlen}s - %s\n",$flag,$toggle_options{$flag},$off_on[$options{$flag}];
+		} # FOREACH
+	} # IF
+	else {
+		$opt = $parameters[0];
+		if ( exists $toggle_options{$opt} ) {
+			$options{$opt} ^= 1;
+			print "'${opt}' - $toggle_options{$opt} - $off_on[$options{$opt}]\n";
+		} # IF
+		else {
+			display_error("'$opt' is not a valid toggle option\n");
+		} # ELSE
+	} # ELSE
+
+	return;
+} # end of toggle_options
 
 ######################################################################
 #
@@ -303,7 +421,7 @@ sub find_member_by_basename
 		} # ELSE
 	} # IF
 	else {
-		print "Required file name was not specified\n";
+		display_error("Required file name was not specified\n");
 	} # ELSE
 
 	return;
@@ -356,7 +474,7 @@ sub find_member_by_path
 		} # ELSE
 	} # IF
 	else {
-		print "Required file name was not specified\n";
+		display_error("Required file name was not specified\n");
 	} # ELSE
 
 	return;
@@ -573,7 +691,7 @@ sub edit_member
 		} # ELSE
 	} # IF
 	else {
-		print "Member name was not specified\n";
+		display_error("Required member name was not specified\n");
 	} # ELSE
 
 	return;
@@ -629,7 +747,7 @@ sub hex_member_dump
 		} # ELSE
 	} # IF
 	else {
-		print "Member name was not specified\n";
+		display_error("Required member name was not specified\n");
 	} # ELSE
 
 	return;
@@ -677,6 +795,9 @@ sub list_member_contents_with_line_numbers
 			print "'$parameters[0]' is not a member in '$zipfile'\n";
 		} # ELSE
 	} # IF
+	else {
+		display_error("Required member name was not specified\n");
+	} # ELSE
 
 	return;
 } # end of list_member_contents_with_line_numbers
@@ -734,6 +855,9 @@ sub grep_member
 			print "'$name' is not a member in '$zipfile'\n";
 		} # ELSE
 	} # IF
+	else {
+		display_error("Required parameters were not specified\n");
+	} # ELSE
 
 	return;
 } # end of grep_member
@@ -779,6 +903,9 @@ sub head_member
 			print "'$parameters[0]' is not a member in '$zipfile'\n";
 		} # ELSE
 	} # IF
+	else {
+		display_error("Required member name was not specified\n");
+	} # ELSE
 
 	return;
 } # end of head_member
@@ -828,7 +955,7 @@ sub save_member
 		} # ELSE
 	} # IF
 	else {
-		print "member name was not specified.\n";
+		display_error("Required member name was not specified\n");
 	} # ELSE
 
 	return;
@@ -868,6 +995,7 @@ MAIN:
 	if ( $sorting > 1 ) {
 		die("Options 's' and 't' are mutually exclusive\n");
 	} # IF
+	$toggle_maxlen = (reverse sort { $a <=> $b} map { length $_ } @toggle_options)[0];
 
 	$CONSOLE = new Win32::Console();
 	unless ( defined $CONSOLE ) {
