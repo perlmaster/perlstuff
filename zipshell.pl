@@ -64,6 +64,7 @@ require "comma_format.pl";
 require "format_megabytes.pl";
 require "hexdump.pl";
 require "display_smooth_message_box.pl";
+require "print_lists.pl";
 
 my %options = (
 	"d" => 0 , "h" => 0 , "s" => 0 , "t" => 0 , "r" => 0 , "H" => 10 , "T" => 10 ,
@@ -100,6 +101,8 @@ my @main_menu = (
 	[ "Edit a copy of the contents of a member" , \&edit_member ] ,
 	[ "Search member contents for lines containing a pattern" , \&grep_member ] ,
 	[ "Manage toggle option flags" , \&toggle_options ] ,
+	[ "Display help" , \&display_help ] ,
+	[ "Display a summary of filename extensions" , \&ext_summary ] ,
 );
 my $num_menu_entries = scalar @main_menu;
 my $CONSOLE;
@@ -235,6 +238,102 @@ sub toggle_options
 
 	return;
 } # end of toggle_options
+
+######################################################################
+#
+# Function  : display_help
+#
+# Purpose   : Display help information
+#
+# Inputs    : (none)
+#
+# Output    : help information
+#
+# Returns   : nothing
+#
+# Example   : display_help();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub display_help
+{
+	my ( $buffer );
+
+	display_pod_help($0);
+	print "\nPress <Enter> to continue : ";
+	$buffer = <STDIN>;
+
+	return;
+} # end of display_help
+
+######################################################################
+#
+# Function  : ext_summary
+#
+# Purpose   : Display a summary of filename extensions
+#
+# Inputs    : (none)
+#
+# Output    : Summary of filename extensions
+#
+# Returns   : nothing
+#
+# Example   : ext_summary();
+#
+# Notes     : The message is prefixed with "DEBUG : "
+#
+######################################################################
+
+sub ext_summary
+{
+	my ( $ref , %extensions , $num_no_ext , $basename , @list , $ext , $ref2 );
+	my ( $count , @count , @bytes , $buffer );
+
+	$num_no_ext = 0;
+	%extensions = ();
+	foreach my $name ( @member_names ) {
+		$ref = $members{$name};
+		$basename = basename($name);
+		if ( $basename =~ m/\./ ) {
+			@list = split(/\./,$basename);
+			$ext = pop @list;
+			$ref2 = $extensions{$ext};
+			if ( defined $ref2 ) {
+				$extensions{$ext}{'count'} += 1;
+				$extensions{$ext}{'bytes'} += $ref->{'size'};
+			} # IF
+			else {
+				$extensions{$ext}{'count'} = 1;
+				$extensions{$ext}{'bytes'} = $ref->{'size'};
+			} # ELSE
+		} # IF
+		else {
+			$num_no_ext += 1;
+		} # ELSE
+	} # FOREACH
+	print "\n${num_no_ext} entries with no extension\n";
+	@list = sort { lc $a cmp lc $b } keys %extensions;
+	$count = scalar @list;
+	print "${count} different extensions detected\n";
+	@count = map { $extensions{$_}{'count'} } @list;
+	if ( $options{'m'} ) {
+		@bytes = map { format_megabytes($extensions{$_}{'bytes'},1) } @list;
+	} # IF
+	else {
+		@bytes = map { comma_format($extensions{$_}{'bytes'}) } @list;
+	} # ELSE
+	unless ( open(PIPE,"|$options{'p'}") ) {
+		die("open of pipe to '$options{'p'}' failed : $!\n");
+	} # UNLESS
+	print_lists([ \@list , \@count , \@bytes ],[ "Ext" , "Count" , "Bytes" ],"=",\*PIPE);
+	close PIPE;
+	print "\nPress <Enter> to continue : ";
+	$buffer = <STDIN>;
+
+	return;
+} # end of ext_summary
 
 ######################################################################
 #
