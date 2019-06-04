@@ -101,8 +101,10 @@ my @main_menu = (
 	[ "Edit a copy of the contents of a member" , \&edit_member ] ,
 	[ "Search member contents for lines containing a pattern" , \&grep_member ] ,
 	[ "Manage toggle option flags" , \&toggle_options ] ,
-	[ "Display help" , \&display_help ] ,
+	[ "Display Perl POD help" , \&display_perl_pod_help ] ,
+	[ "Display help info" , \&display_help_info ] ,
 	[ "Display a summary of filename extensions" , \&ext_summary ] ,
+	[ "Display a list of files with no extension" , \&no_extension ] ,
 );
 my $num_menu_entries = scalar @main_menu;
 my $CONSOLE;
@@ -126,6 +128,23 @@ my @copyright = (
 	"Created by Barry Kimelman" ,
 	"Copyright (C) 2019"
 );
+my $help_info =<<HELP;
+This Perl script is designed to access the information stored in a
+ZIP archive file.
+
+You can list the members of the archive with or without attributes,
+display the contents of a member and more.
+
+When entering parameters for a command if a parameter contains whitespace
+then you must enclose the parameter value in quotes.
+
+A number of the command line options can be changed while the script is
+running by using the "toggle" command.
+
+The default text editor is "notepad" which can be overriden.
+
+The default paging program is "more" which can be overriden.
+HELP
 
 my $single_quote = 1;
 my $double_quote = 2;
@@ -241,9 +260,9 @@ sub toggle_options
 
 ######################################################################
 #
-# Function  : display_help
+# Function  : display_perl_pod_help
 #
-# Purpose   : Display help information
+# Purpose   : Display Perl POD help information
 #
 # Inputs    : (none)
 #
@@ -251,13 +270,13 @@ sub toggle_options
 #
 # Returns   : nothing
 #
-# Example   : display_help();
+# Example   : display_perl_pod_help();
 #
 # Notes     : (none)
 #
 ######################################################################
 
-sub display_help
+sub display_perl_pod_help
 {
 	my ( $buffer );
 
@@ -266,7 +285,40 @@ sub display_help
 	$buffer = <STDIN>;
 
 	return;
-} # end of display_help
+} # end of display_perl_pod_help
+
+######################################################################
+#
+# Function  : display_help_info
+#
+# Purpose   : Display Perl POD help information
+#
+# Inputs    : (none)
+#
+# Output    : help information
+#
+# Returns   : nothing
+#
+# Example   : display_help_info();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub display_help_info
+{
+	my ( $buffer );
+
+	unless ( open(PIPE,"|$options{'p'}") ) {
+		die("open of pipe to '$options{'p'}' failed : $!\n");
+	} # UNLESS
+	print PIPE "$help_info\n";
+	close PIPE;
+	print "\nPress <Enter> to continue : ";
+	$buffer = <STDIN>;
+
+	return;
+} # end of display_help_info
 
 ######################################################################
 #
@@ -282,7 +334,7 @@ sub display_help
 #
 # Example   : ext_summary();
 #
-# Notes     : The message is prefixed with "DEBUG : "
+# Notes     : (none)
 #
 ######################################################################
 
@@ -334,6 +386,63 @@ sub ext_summary
 
 	return;
 } # end of ext_summary
+
+######################################################################
+#
+# Function  : no_extension
+#
+# Purpose   : Display a list of entries with no filename extension
+#
+# Inputs    : (none)
+#
+# Output    : List of entries with no filename extension
+#
+# Returns   : nothing
+#
+# Example   : no_extension();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub no_extension
+{
+	my ( $ref , $basename , @list , $count , $maxlen , $size );
+
+	$count = 0;
+	@list = ();
+	foreach my $name ( @member_names ) {
+		$ref = $members{$name};
+		$basename = basename($name);
+		if ( $basename !~ m/\./ ) {
+			$count += 1;
+			push @list,$name;
+		} # IF
+	} # FOREACH
+	print "count = $count\n";
+	if ( $count == 0 ) {
+		print "All the members filenames have an extension.\n";
+	} # IF
+	else {
+		$maxlen = (reverse sort { $a <=> $b} map { length $_ } @list)[0];
+		unless ( open(PIPE,"|$options{'p'}") ) {
+			die("open of pipe to '$options{'p'}' failed : $!\n");
+		} # UNLESS
+		foreach my $name ( @list ) {
+			$ref = $members{$name};
+			if ( $options{'m'} ) {
+				$size = format_megabytes($ref->{'size'},1);
+			} # IF
+			else {
+				$size = comma_format($ref->{'size'});
+			} # ELSE
+			printf PIPE "%-${longest_name}.${longest_name}s : %12s %s\n",$name,$size,$ref->{'date'};
+		} # FOREACH
+		close PIPE;
+	} # ELSE
+
+	return;
+} # end of no_extension
 
 ######################################################################
 #
