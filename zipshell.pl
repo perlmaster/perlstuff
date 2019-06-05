@@ -100,6 +100,7 @@ my @main_menu = (
 	[ "Dump contents of member in hex" , \&hex_member_dump ] ,
 	[ "Edit a copy of the contents of a member" , \&edit_member ] ,
 	[ "Search member contents for lines containing a pattern" , \&grep_member ] ,
+	[ "Search member contents for lines not containing a pattern" , \&notgrep_member ] ,
 	[ "Manage toggle option flags" , \&toggle_options ] ,
 	[ "Display Perl POD help" , \&display_perl_pod_help ] ,
 	[ "Display help info" , \&display_help_info ] ,
@@ -708,7 +709,7 @@ sub find_member_by_path
 
 sub list_names_only
 {
-	my ( $index , $ref , @list , @indices , @extra , $sort );
+	my ( $index , $ref , @list , @indices , @extra , $sort , $buffer );
 
 	unless ( open(PIPE,"|$options{'p'}") ) {
 		die("open of pipe to '$options{'p'}' failed : $!\n");
@@ -735,6 +736,8 @@ sub list_names_only
 
 	print PIPE join("\n",@list),"\n";
 	close PIPE;
+	print "\nPress <Enter> to continue : ";
+	$buffer = <STDIN>;
 
 	return;
 } # end of list_names_only
@@ -759,7 +762,7 @@ sub list_names_only
 
 sub list_compact_names_only
 {
-	my ( $index , $ref , @list , @indices , @extra , $sort );
+	my ( $index , $ref , @list , @indices , @extra , $sort , $buffer );
 
 	unless ( open(PIPE,"|$options{'p'}") ) {
 		die("open of pipe to '$options{'p'}' failed : $!\n");
@@ -785,8 +788,9 @@ sub list_compact_names_only
 	} # IF
 
 	list_columns_style(\@list,$console_info{"columns"},undef,\*PIPE);
-
 	close PIPE;
+	print "\nPress <Enter> to continue : ";
+	$buffer = <STDIN>;
 
 	return;
 } # end of list_compact_names_only
@@ -811,7 +815,7 @@ sub list_compact_names_only
 
 sub list_members_info
 {
-	my ( $index , $ref , @list , @indices , @extra , $sort , $size );
+	my ( $index , $ref , @list , @indices , @extra , $sort , $size , $buffer );
 
 	unless ( open(PIPE,"|$options{'p'}") ) {
 		die("open of pipe to '$options{'p'}' failed : $!\n");
@@ -847,6 +851,8 @@ sub list_members_info
 		printf PIPE "%-${longest_name}.${longest_name}s : %12s %s\n",$name,$size,$ref->{'date'};
 	} # FOREACH
 	close PIPE;
+	print "\nPress <Enter> to continue : ";
+	$buffer = <STDIN>;
 
 	return;
 } # end of list_members_info
@@ -981,7 +987,7 @@ sub hex_member_dump
 
 sub list_member_contents_with_line_numbers
 {
-	my ( $ref , @lines , $content , $status , $index );
+	my ( $ref , @lines , $content , $status , $index , $buffer );
 
 	if ( $num_parameters > 0 ) {
 		$ref = $members{$parameters[0]};
@@ -998,6 +1004,8 @@ sub list_member_contents_with_line_numbers
 				print PIPE "$lines[$index]\n";
 			} # FOR
 			close PIPE;
+			print "\nPress <Enter> to continue : ";
+			$buffer = <STDIN>;
 		} # IF
 		else {
 			print "'$parameters[0]' is not a member in '$zipfile'\n";
@@ -1069,6 +1077,66 @@ sub grep_member
 
 	return;
 } # end of grep_member
+
+######################################################################
+#
+# Function  : notgrep_member
+#
+# Purpose   : Search member contents for lines not matching a pattern
+#
+# Inputs    : (none)
+#
+# Output    : member content lines not containing specified pattern
+#
+# Returns   : nothing
+#
+# Example   : notgrep_member();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub notgrep_member
+{
+	my ( $ref , @lines , $content , $status , $index , $name , $pattern );
+	my ( $count , $match );
+
+	if ( $num_parameters > 1 ) {
+		$name = shift @parameters;
+		$pattern = join("|",@parameters);
+		$ref = $members{$name};
+		if ( defined $ref ) {
+			($content, $status) = $zip->contents( $name );
+			@lines = split(/\n/,$content);
+			unless ( open(PIPE,"|$options{'p'}") ) {
+				die("open of pipe to '$options{'p'}' failed : $!\n");
+			} # UNLESS
+			$count = 0;
+			for ( $index = 0 ; $index <= $#lines ; ++$index ) {
+				if ( ($options{'i'} == 0 && $lines[$index] !~ m/${pattern}/) ||
+							($options{'i'} && $lines[$index] !~ m/${pattern}/i) ) {
+					$count += 1;
+					if ( $options{'n'} ) {
+						printf PIPE "%5d\t",1+$index;
+					} # IF
+					print PIPE "$lines[$index]\n";
+				} # IF
+			} # FOR
+			if ( $count == 0 ) {
+				print PIPE "'$pattern' was found in all lines of '$name'\n";
+			} # IF
+			close PIPE;
+		} # IF
+		else {
+			print "'$name' is not a member in '$zipfile'\n";
+		} # ELSE
+	} # IF
+	else {
+		display_error("Required parameters were not specified\n");
+	} # ELSE
+
+	return;
+} # end of notgrep_member
 
 ######################################################################
 #
