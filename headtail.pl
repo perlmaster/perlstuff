@@ -54,7 +54,7 @@ sub display_head_tail
 	$num_lines = scalar @records;
 	@numbers = map { sprintf "%5d",$_ } ( 1 .. $num_lines );
 	if ( $options{"N"} ) {
-		@rec2 = map { "$numbers[$_] $records[$_]" } ( 0 .. $#records );
+		@rec2 = map { "$numbers[$_]\t$records[$_]" } ( 0 .. $#records );
 	} # IF
 	else {
 		@rec2 = @records;
