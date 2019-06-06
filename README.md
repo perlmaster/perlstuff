@@ -33,6 +33,7 @@ zipshell.pl - a command shell to look at the data in a ZIP file archive
 flatfile-rdbms.zip - code and data to implement a GUI for a flatfile RDMBS in Perl using the Tk module. the gui.bat file will start the script
 ls8.pl - display ls style info for files
 lsrand.pl - display ls style info for files with random ordering
+headtail.pl - list the beginning and end of a file
 
 
 the other files in this repository are files that are "required" by the above named scripts
