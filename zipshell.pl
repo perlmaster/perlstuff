@@ -106,6 +106,7 @@ my @main_menu = (
 	[ "Display help info" , \&display_help_info ] ,
 	[ "Display a summary of filename extensions" , \&ext_summary ] ,
 	[ "Display a list of files with no extension" , \&no_extension ] ,
+	[ "Display the head and tail of a member" , \&head_tail_member ] ,
 );
 my $num_menu_entries = scalar @main_menu;
 my $CONSOLE;
@@ -1236,6 +1237,110 @@ sub save_member
 
 	return;
 } # end of save_member
+
+######################################################################
+#
+# Function  : display_head_tail
+#
+# Purpose   : Display the head and tail of a file
+#
+# Inputs    : $_[0] - name of member
+#             $_[1] - reference to array of lines
+#             $_[2] - handle of open file to receive listing
+#             $_[3] - chunk size
+#
+# Output    : (none)
+#
+# Returns   : nothing
+#
+# Example   : display_head_tail($member_name,\@lines,\*STDOUT,20);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub display_head_tail
+{
+	my ( $member_name , $ref_lines , $handle , $chunk_size ) = @_;
+	my ( $num_lines , @numbers , @rec2 , $count , $snip1 , $snip2 , $buffer );
+	my ( @rec3 , $index2 , $index3 , @records );
+
+	@records = @$ref_lines;
+	$num_lines = scalar @records;
+	@numbers = map { sprintf "%5d",$_ } ( 1 .. $num_lines );
+	if ( $options{"n"} ) {
+		@rec2 = map { "$numbers[$_]\t$records[$_]" } ( 0 .. $#records );
+	} # IF
+	else {
+		@rec2 = @records;
+	} # ELSE
+	$count = $chunk_size << 1;
+	if ( $count >= $num_lines ) {
+		print join("\n",@rec2),"\n";
+	} # IF
+	else {
+		$snip1 = 1 + $chunk_size;
+		$snip2 = $num_lines - $chunk_size;
+		$buffer = '=' x 20;
+		@rec3 = @rec2[0 .. $chunk_size-1];
+		print $handle join("\n",@rec3),"${buffer} lines ${snip1} - ${snip2} of $member_name not shown ${buffer}\n";
+		$index2 = $#records;
+		$index3 = $index2;
+		$index3 -= $chunk_size;
+		$index3 += 1;
+		@rec3 = @rec2[$index3 .. $index2];
+		print $handle join("\n",@rec3),"\n";
+	} # ELSE
+
+	return;
+} # end of display_head_tail
+
+######################################################################
+#
+# Function  : head_tail_member
+#
+# Purpose   : List the head and tail of a member's contents
+#
+# Inputs    : (none)
+#
+# Output    : member contents head and tail
+#
+# Returns   : nothing
+#
+# Example   : head_tail_member();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub head_tail_member
+{
+	my ( $ref , @lines , $content , $status , $count , $buffer );
+
+	if ( $num_parameters > 1 ) {
+		$ref = $members{$parameters[0]};
+		print "\nDisplay a chunk size of $parameters[1] lines for the head/tail of $parameters[0]\n";
+		if ( defined $ref ) {
+			($content, $status) = $zip->contents( $parameters[0] );
+			@lines = split(/\n/,$content);
+			unless ( open(PIPE,"|$options{'p'}") ) {
+				die("open of pipe to '$options{'p'}' failed : $!\n");
+			} # UNLESS
+			display_head_tail($parameters[0],\@lines,\*PIPE,$parameters[1]);
+			close PIPE;
+			print "\nPress <Enter> to continue : ";
+			$buffer = <STDIN>;
+		} # IF
+		else {
+			print "'$parameters[0]' is not a member in '$zipfile'\n";
+		} # ELSE
+	} # IF
+	else {
+		display_error("Required member name and lines count were not specified\n");
+	} # ELSE
+
+	return;
+} # end of head_tail_member
 
 ######################################################################
 #
