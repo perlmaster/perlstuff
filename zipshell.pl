@@ -91,6 +91,7 @@ my @main_menu = (
 	[ "Compact list member names without attributes" , \&list_compact_names_only ] ,
 	[ "List member names with attributes" , \&list_members_info ] ,
 	[ "List contents of member" , \&list_member_contents_with_line_numbers ] ,
+	[ "Print contents of member" , \&print_member ] ,
 	[ "List the first few lines of a member's content" , \&head_member ] ,
 	[ "List the last few lines of a member's content" , \&tail_member ] ,
 	[ "Save a member to disk" , \&save_member ] ,
@@ -1018,6 +1019,65 @@ sub list_member_contents_with_line_numbers
 
 	return;
 } # end of list_member_contents_with_line_numbers
+
+######################################################################
+#
+# Function  : print_member
+#
+# Purpose   : Print contents of a member
+#
+# Inputs    : (none)
+#
+# Output    : appropriate messages
+#
+# Returns   : nothing
+#
+# Example   : print_member();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub print_member
+{
+	my ( $ref , $content , $status , $fh , $path , @lines , @numbers );
+
+	if ( $num_parameters > 0 ) {
+		$ref = $members{$parameters[0]};
+		if ( defined $ref ) {
+			unless ( defined $tempdir ) {
+				print "Could not determine TEMPORARY files directory\n";
+			} # UNLESS
+			else {
+      			($fh, $path) = tempfile();
+				if ( defined $fh ) {
+					($content, $status) = $zip->contents( $parameters[0] );
+					if ( $options{'n'} ) {
+						@lines = split(/\n/,$content);
+						$status = scalar @lines;
+						@numbers = ( 1 .. $status );
+						$content = join("\n",map { "$numbers[$_]\t$lines[$_]" } (0 .. $#lines));
+					} # IF
+					print $fh "$content";
+					close $fh;
+					system("notepad /p \"$path\"");
+					unlink $path;
+				} # IF
+				else {
+					print "Could not create temporary file : $!\n";
+				} # ELSE
+			} # ELSE
+		} # IF
+		else {
+			print "'$parameters[0]' is not a member in '$zipfile'\n";
+		} # ELSE
+	} # IF
+	else {
+		display_error("Required member name was not specified\n");
+	} # ELSE
+
+	return;
+} # end of print_member
 
 ######################################################################
 #
