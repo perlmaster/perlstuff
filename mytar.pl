@@ -27,8 +27,11 @@ use lib $FindBin::Bin;
 require "time_date.pl";
 require "format_mode.pl";
 require "expand_tabs.pl";
+require "list_file_info.pl";
+require "display_pod_help.pl";
 
-my ( %options , %members_info , @members_names , $num_members );
+my ( %members_info , @members_names , $num_members , $exit_flag );
+my %options = ( "d" => 0 , "h" => 0 );
 my $pager = "";
 
 my %cmds = (
@@ -1795,7 +1798,7 @@ sub cmd_save_member_contents
 	} # UNLESS
 	print OUTPUT "$buffer";
 	close OUTPUT;
-	system("ls -ld $member_name");
+	list_file_info_full($member_name,{ "g" => 1 , "o" => 1 , "k" => 0 , "n" => 0 , "m" => 1 } );
 
 	return;
 } # end of cmd_save_member_contents
@@ -1860,7 +1863,7 @@ sub cmd_save_member_contents_with_overwrite
 	} # UNLESS
 	print OUTPUT "$buffer";
 	close OUTPUT;
-	system("ls -ld $member_name");
+	list_file_info_full($member_name,{ "g" => 1 , "o" => 1 , "k" => 0 , "n" => 0 , "m" => 1 } );
 
 	return;
 } # end of cmd_save_member_contents_with_overwrite
@@ -1953,6 +1956,51 @@ sub cmd_notopics
 
 ######################################################################
 #
+# Function  : process_command
+#
+# Purpose   : Process a command on a tarfile
+#
+# Inputs    : $_[0] - name of tarfile
+#             $_[1] - command buffer
+#
+# Output    : command results
+#
+# Returns   : nothing
+#
+# Example   : process_command($tarfile,$commmand);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub process_command
+{
+	my ( $tarfile , $buffer ) = @_;
+	my ( @fields , $ref , @array , $command );
+
+	$buffer =~ s/^\s+//g;
+	$buffer =~ s/\s+$//g;
+	@fields = split(/\s+/,$buffer);
+	$command = shift @fields;
+	$buffer = $';
+	if ( $command =~ m/^q$|^exit$|^bye$/i ) {
+		$exit_flag = 1;
+		return;
+	} # IF
+	$ref = $cmds{$command};
+	if ( defined $ref ) {
+		@array = @$ref;
+		$array[0]->($tarfile,\@fields);
+	} # IF
+	else {
+		print "Unknown command '$command'\n";
+	} # ELSE
+
+	return;
+} # end of process_command
+
+######################################################################
+#
 # Function  : process_tar_file
 #
 # Purpose   : Process a TAR file.
@@ -1976,7 +2024,7 @@ sub process_tar_file
 	my ( $ref , @array );
 
 	unless ( sysopen(TAR,$tarfile,O_RDONLY) ) {
-		die("sysopen failed for \"$tarfile\" : $!\n");
+		die("sysopen failed for '$tarfile' : $!\n");
 	} # UNLESS
 
 	%members_info = ();
@@ -1994,39 +2042,24 @@ sub process_tar_file
 	} # IF
 	@members_names = sort { lc $a cmp lc $b } @members_names;
 	$num_members = scalar @members_names;
-
-	print "\n";
-
-	$ref = $cmds{'M'};
-	@array = @$ref;
-	$array[0]->($tarfile);
+	print "\nFound ${num_members} members in '$tarfile'\n";
+	if ( exists $options{'c'} ) {
+		$buffer = $options{'c'};
+		process_command($tarfile,$buffer);
+	} # IF
 
 	print "\n";
 
 	$prompt = "\nEnter command ==> ";
-	while ( 1 ) {
+	$exit_flag = 0;
+	while ( ! $exit_flag ) {
 		print $prompt;
 		$buffer = <STDIN>;
 		chomp $buffer;
 		unless ( $buffer =~ m/\S/ ) {
 			next;
 		} # UNLESS
-		$buffer =~ s/^\s+//g;
-		$buffer =~ s/\s+$//g;
-		@fields = split(/\s+/,$buffer);
-		$command = shift @fields;
-		$buffer = $';
-		if ( $command =~ m/^q$|^exit$|^bye$/i ) {
-			last;
-		} # IF
-		$ref = $cmds{$command};
-		if ( defined $ref ) {
-			@array = @$ref;
-			$array[0]->($tarfile,\@fields);
-		} # IF
-		else {
-			print "Unknown command '$command'\n";
-		} # ELSE
+		process_command($tarfile,$buffer);
 	} # WHILE
 
 ##	close TAR;
@@ -2055,21 +2088,13 @@ MAIN:
 {
 	my ( $status , @blocks , @text , $buffer );
 
-	%options = ( "d" => 0 , "h" => 0 );
-	$status = getopts("hdp:",\%options);
+	$status = getopts("hdp:c:",\%options);
 	if ( $options{"h"} ) {
-		if ( $^O =~ m/MSWin/ ) {
-# Windows stuff goes here
-			system("pod2text $0 | more");
-		} # IF
-		else {
-# Non-Windows stuff (i.e. UNIX) goes here
-			system("pod2man $0 | nroff -man | less -M");
-		} # ELSE
+		display_pod_help($0);
 		exit 0;
 	} # IF
 	unless ( $status  && 0 < @ARGV ) {
-		die("Usage : $0 [-dh] [-p pager] filename [... filename]\n");
+		die("Usage : $0 [-dh] [-c initial_command] [-p pager] filename [... filename]\n");
 	} # UNLESS
 	if ( exists $options{'p'} ) {
 		$pager = $options{'p'};
@@ -2112,6 +2137,7 @@ Process TAR files.
   -d - activate debug mode
   -h - produce this summary
   -p <pager> - name of "paging" program for displaying output
+  -c initial_command - execute the specified command on the tarfile
 
 =head1 PARAMETERS
 
