@@ -50,6 +50,7 @@ use Data::Dumper;
 use Archive::Zip qw( :ERROR_CODES :CONSTANTS );
 use File::Basename;
 use Win32::Console;
+use Win32::Clipboard;
 use Fcntl;
 use File::Temp qw/ tempfile tempdir /;
 use FindBin;
@@ -605,7 +606,7 @@ sub display_history
 
 sub find_member_by_basename
 {
-	my ( $index , $ref , $count , $longest_name , @matches );
+	my ( $index , $ref , $count , $longest_name , @matches , $clip , $matches );
 
 	if ( $num_parameters > 0 ) {
 		$count = 0;
@@ -617,7 +618,7 @@ sub find_member_by_basename
 			} # IF
 		} # FOR
 		if ( $count == 0 ) {
-			print "No matches found for '$parameters[0]\n";
+			print "No matches found for '$parameters[0]'\n";
 		} # IF
 		else {
 			unless ( open(PIPE,"|$options{'p'}") ) {
@@ -629,6 +630,14 @@ sub find_member_by_basename
 				printf PIPE "%-${longest_name}.${longest_name}s : %10d %s\n",$name,$ref->{'size'},$ref->{'date'};
 			} # FOREACH
 			close PIPE;
+			$clip = Win32::Clipboard();
+			unless ( defined $clip ) {
+				die("Can't create clipboard object : $!\n");
+			} # UNLESS
+			$clip->Empty();
+			$matches = join("\n",@matches);
+			$clip->Set($matches);
+			print "\nList of matched names have been copied to the clipboard\n";
 		} # ELSE
 	} # IF
 	else {
