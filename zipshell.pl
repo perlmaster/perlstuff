@@ -86,6 +86,7 @@ my @member_names = ();
 my @basenames = ();
 my $num_members = 0;
 my $longest_name = -1;
+my @search_results = ();
 
 my @main_menu = (
 	[ "List member names without attributes" , \&list_names_only ] ,
@@ -148,6 +149,10 @@ running by using the "toggle" command.
 The default text editor is "notepad" which can be overriden.
 
 The default paging program is "more" which can be overriden.
+
+When specifying a member name parameter if you enter a '#' followed by
+a 1 origin number thenb then it is assumed you are referring to an entry
+in the last search results.
 HELP
 
 my $single_quote = 1;
@@ -606,15 +611,15 @@ sub display_history
 
 sub find_member_by_basename
 {
-	my ( $index , $ref , $count , $longest_name , @matches , $clip , $matches );
+	my ( $index , $ref , $count , $longest_name , $clip , $matches , $buffer );
 
 	if ( $num_parameters > 0 ) {
 		$count = 0;
-		@matches = ();
+		@search_results = ();
 		for ( $index = 0 ; $index <= $#basenames ; ++$index ) {
 			if ( $basenames[$index] =~ m/${parameters[0]}/i ) {
 				$count += 1;
-				push @matches, $member_names[$index];
+				push @search_results, $member_names[$index];
 			} # IF
 		} # FOR
 		if ( $count == 0 ) {
@@ -624,8 +629,8 @@ sub find_member_by_basename
 			unless ( open(PIPE,"|$options{'p'}") ) {
 				die("open of pipe to '$options{'p'}' failed : $!\n");
 			} # UNLESS
-			$longest_name = (sort { $b <=> $a} map { length $_ } @matches)[0];
-			foreach my $name ( @matches ) {
+			$longest_name = (sort { $b <=> $a} map { length $_ } @search_results)[0];
+			foreach my $name ( @search_results ) {
 				$ref = $members{$name};
 				printf PIPE "%-${longest_name}.${longest_name}s : %10d %s\n",$name,$ref->{'size'},$ref->{'date'};
 			} # FOREACH
@@ -635,9 +640,11 @@ sub find_member_by_basename
 				die("Can't create clipboard object : $!\n");
 			} # UNLESS
 			$clip->Empty();
-			$matches = join("\n",@matches);
+			$matches = join("\n",@search_results);
 			$clip->Set($matches);
 			print "\nList of matched names have been copied to the clipboard\n";
+			print "\nPress <Enter> to continue : ";
+			$buffer = <STDIN>;
 		} # ELSE
 	} # IF
 	else {
@@ -667,15 +674,15 @@ sub find_member_by_basename
 
 sub find_member_by_path
 {
-	my ( $index , $ref , $count , $longest_name , @matches );
+	my ( $index , $ref , $count , $longest_name , $buffer );
 
 	if ( $num_parameters > 0 ) {
 		$count = 0;
-		@matches = ();
+		@search_results = ();
 		for ( $index = 0 ; $index <= $#basenames ; ++$index ) {
 			if ( $member_names[$index] =~ m/${parameters[0]}/i ) {
 				$count += 1;
-				push @matches, $member_names[$index];
+				push @search_results, $member_names[$index];
 			} # IF
 		} # FOR
 		if ( $count == 0 ) {
@@ -685,12 +692,14 @@ sub find_member_by_path
 			unless ( open(PIPE,"|$options{'p'}") ) {
 				die("open of pipe to '$options{'p'}' failed : $!\n");
 			} # UNLESS
-			$longest_name = (sort { $b <=> $a} map { length $_ } @matches)[0];
-			foreach my $name ( @matches ) {
+			$longest_name = (sort { $b <=> $a} map { length $_ } @search_results)[0];
+			foreach my $name ( @search_results ) {
 				$ref = $members{$name};
 				printf PIPE "%-${longest_name}.${longest_name}s : %10d %s\n",$name,$ref->{'size'},$ref->{'date'};
 			} # FOREACH
 			close PIPE;
+			print "\nPress <Enter> to continue : ";
+			$buffer = <STDIN>;
 		} # ELSE
 	} # IF
 	else {
@@ -870,6 +879,60 @@ sub list_members_info
 
 ######################################################################
 #
+# Function  : validate_member_name
+#
+# Purpose   : Validate the specified member name
+#
+# Inputs    : $_[0] - the member name to be validated
+#             $_[1] - reference to buffer to receive member name
+#
+# Output    : appropriate messages
+#
+# Returns   : IF a valid name THEN reference to info hash ELSE undef
+#
+# Example   : $ref = validate_member_name($members{$parameters[0],\$name});
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub validate_member_name
+{
+	my ( $member_name , $ref_name ) = @_;
+	my ( $ref , $index );
+
+	$$ref_name = "";
+	if ( $member_name =~ m/^#(\d+)$/ ) {
+		$index = $1;
+		if ( 0 == scalar @search_results ) {
+			print "Error : search results list is empty\n";
+			return undef;
+		} # IF
+		if ( $index == 0 || $index > $#search_results ) {
+			print "Error : $index is beyond the list of search results\n";
+			return undef;
+		} # IF
+		$ref = $members{$search_results[$index-1]};
+		unless ( defined $ref ) {
+			print "Error : No info found for '$search_results[$index-1]'\n";
+			return undef;
+		} # UNLESS
+		$$ref_name = $search_results[$index-1];
+	} # IF
+	else {
+		$ref = $members{$member_name};
+		unless ( defined $ref ) {
+			print "Error : No info found for '$member_name'\n";
+			return undef;
+		} # UNLESS
+		$$ref_name = $member_name;
+	} # ELSE
+
+	return $ref;
+} # end of validate_member_name
+
+######################################################################
+#
 # Function  : edit_member
 #
 # Purpose   : List contents of a member
@@ -888,12 +951,12 @@ sub list_members_info
 
 sub edit_member
 {
-	my ( $ref , $content , $status , $path , $fh );
+	my ( $ref , $content , $status , $path , $fh , $name );
 
 	if ( $num_parameters > 0 ) {
-		$ref = $members{$parameters[0]};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
-			($content, $status) = $zip->contents( $parameters[0] );
+			($content, $status) = $zip->contents( $name );
 			unless ( defined $tempdir ) {
 				print "Could not determine TEMPORARY files directory\n";
 			} # UNLESS
@@ -911,9 +974,6 @@ sub edit_member
 				} # ELSE
 			} # ELSE
 		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required member name was not specified\n");
@@ -942,12 +1002,12 @@ sub edit_member
 
 sub hex_member_dump
 {
-	my ( $ref , $content , $status , $count , $buffer , $offset , $width , $hex );
+	my ( $ref , $content , $status , $count , $buffer , $offset , $width , $hex , $name );
 
 	if ( $num_parameters > 0 ) {
-		$ref = $members{$parameters[0]};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
-			($content, $status) = $zip->contents( $parameters[0] );
+			($content, $status) = $zip->contents( $name );
 			unless ( open(PIPE,"|$options{'p'}") ) {
 				die("open of pipe to '$options{'p'}' failed : $!\n");
 			} # UNLESS
@@ -967,9 +1027,6 @@ sub hex_member_dump
 			print PIPE "\n";
 			close PIPE;
 		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required member name was not specified\n");
@@ -998,12 +1055,12 @@ sub hex_member_dump
 
 sub list_member_contents_with_line_numbers
 {
-	my ( $ref , @lines , $content , $status , $index , $buffer );
+	my ( $ref , @lines , $content , $status , $index , $buffer , $name );
 
 	if ( $num_parameters > 0 ) {
-		$ref = $members{$parameters[0]};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
-			($content, $status) = $zip->contents( $parameters[0] );
+			($content, $status) = $zip->contents( $name );
 			@lines = split(/\n/,$content);
 			unless ( open(PIPE,"|$options{'p'}") ) {
 				die("open of pipe to '$options{'p'}' failed : $!\n");
@@ -1018,9 +1075,6 @@ sub list_member_contents_with_line_numbers
 			print "\nPress <Enter> to continue : ";
 			$buffer = <STDIN>;
 		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required member name was not specified\n");
@@ -1049,10 +1103,10 @@ sub list_member_contents_with_line_numbers
 
 sub print_member
 {
-	my ( $ref , $content , $status , $fh , $path , @lines , @numbers );
+	my ( $ref , $content , $status , $fh , $path , @lines , @numbers , $name );
 
 	if ( $num_parameters > 0 ) {
-		$ref = $members{$parameters[0]};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
 			unless ( defined $tempdir ) {
 				print "Could not determine TEMPORARY files directory\n";
@@ -1060,7 +1114,7 @@ sub print_member
 			else {
       			($fh, $path) = tempfile();
 				if ( defined $fh ) {
-					($content, $status) = $zip->contents( $parameters[0] );
+					($content, $status) = $zip->contents( $name );
 					if ( $options{'n'} ) {
 						@lines = split(/\n/,$content);
 						$status = scalar @lines;
@@ -1077,9 +1131,6 @@ sub print_member
 				} # ELSE
 			} # ELSE
 		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required member name was not specified\n");
@@ -1112,10 +1163,10 @@ sub grep_member
 	my ( $count , $match );
 
 	if ( $num_parameters > 1 ) {
-		$name = shift @parameters;
-		$pattern = join("|",@parameters);
-		$ref = $members{$name};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
+			shift @parameters;
+			$pattern = join("|",@parameters);
 			($content, $status) = $zip->contents( $name );
 			@lines = split(/\n/,$content);
 			unless ( open(PIPE,"|$options{'p'}") ) {
@@ -1137,9 +1188,6 @@ sub grep_member
 			} # IF
 			close PIPE;
 		} # IF
-		else {
-			print "'$name' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required parameters were not specified\n");
@@ -1172,10 +1220,10 @@ sub notgrep_member
 	my ( $count , $match );
 
 	if ( $num_parameters > 1 ) {
-		$name = shift @parameters;
-		$pattern = join("|",@parameters);
-		$ref = $members{$name};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
+			shift @parameters;
+			$pattern = join("|",@parameters);
 			($content, $status) = $zip->contents( $name );
 			@lines = split(/\n/,$content);
 			unless ( open(PIPE,"|$options{'p'}") ) {
@@ -1197,9 +1245,6 @@ sub notgrep_member
 			} # IF
 			close PIPE;
 		} # IF
-		else {
-			print "'$name' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required parameters were not specified\n");
@@ -1228,12 +1273,12 @@ sub notgrep_member
 
 sub head_member
 {
-	my ( $ref , @lines , $content , $status , $count );
+	my ( $ref , @lines , $content , $status , $count , $name );
 
 	if ( $num_parameters > 0 ) {
-		$ref = $members{$parameters[0]};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
-			($content, $status) = $zip->contents( $parameters[0] );
+			($content, $status) = $zip->contents( $name );
 			@lines = split(/\n/,$content);
 			unless ( open(PIPE,"|$options{'p'}") ) {
 				die("open of pipe to '$options{'p'}' failed : $!\n");
@@ -1245,9 +1290,6 @@ sub head_member
 			print PIPE join("\n",map { "$_ $lines[$_-1]" } (1 .. scalar @lines)),"\n";
 			close PIPE;
 		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required member name was not specified\n");
@@ -1276,13 +1318,13 @@ sub head_member
 
 sub save_member
 {
-	my ( $ref , @lines , $content , $status , $basename , $count );
+	my ( $ref , @lines , $content , $status , $basename , $count , $name );
 
 	if ( $num_parameters > 0 ) {
-		$ref = $members{$parameters[0]};
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
-			($content, $status) = $zip->contents( $parameters[0] );
-			$basename = basename($parameters[0]);
+			($content, $status) = $zip->contents( $name );
+			$basename = basename($name );
 			if ( $options{'o'} == 0 && -e $basename ) {
 				print "File '$basename' already exists. Save request ignored.\n";
 			} # IF
@@ -1296,9 +1338,6 @@ sub save_member
 				list_file_info_full($basename,{ "g" => 1 , "o" => 1 , "k" => 0 , "n" => 0 , "m" => 1 } );
 			} # ELSE
 		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required member name was not specified\n");
@@ -1384,25 +1423,22 @@ sub display_head_tail
 
 sub head_tail_member
 {
-	my ( $ref , @lines , $content , $status , $count , $buffer );
+	my ( $ref , @lines , $content , $status , $count , $buffer , $name );
 
 	if ( $num_parameters > 1 ) {
-		$ref = $members{$parameters[0]};
-		print "\nDisplay a chunk size of $parameters[1] lines for the head/tail of $parameters[0]\n";
+		$ref = validate_member_name($parameters[0],\$name);
 		if ( defined $ref ) {
-			($content, $status) = $zip->contents( $parameters[0] );
+			print "\nDisplay a chunk size of $parameters[1] lines for the head/tail of $name\n";
+			($content, $status) = $zip->contents( $name );
 			@lines = split(/\n/,$content);
 			unless ( open(PIPE,"|$options{'p'}") ) {
 				die("open of pipe to '$options{'p'}' failed : $!\n");
 			} # UNLESS
-			display_head_tail($parameters[0],\@lines,\*PIPE,$parameters[1]);
+			display_head_tail($name,\@lines,\*PIPE,$parameters[1]);
 			close PIPE;
 			print "\nPress <Enter> to continue : ";
 			$buffer = <STDIN>;
 		} # IF
-		else {
-			print "'$parameters[0]' is not a member in '$zipfile'\n";
-		} # ELSE
 	} # IF
 	else {
 		display_error("Required member name and lines count were not specified\n");
