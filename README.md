@@ -35,6 +35,7 @@ ls8.pl - display ls style info for files
 lsrand.pl - display ls style info for files with random ordering
 headtail.pl - list the beginning and end of a file
 shuffle.pl - randomly shuffle the lines of text in a file
+squeeze.pl - squeeze multiple consecutive blank lines into 1 blank line
 
 
 the other files in this repository are files that are "required" by the above named scripts
