@@ -102,16 +102,17 @@ my @main_menu = (
 	[ "Display commands history" , \&display_history ] ,
 	[ "Dump contents of member in hex" , \&hex_member_dump ] ,
 	[ "Edit a copy of the contents of a member" , \&edit_member ] ,
-	[ "Search member contents for lines containing a pattern" , \&grep_member ] ,
-	[ "Search member contents for lines not containing a pattern" , \&notgrep_member ] ,
+	[ "Look for a pattern in member lines" , \&grep_member ] ,
+	[ "Look for member line not containing a pattern" , \&notgrep_member ] ,
 	[ "Manage toggle option flags" , \&toggle_options ] ,
-	[ "Display Perl POD help" , \&display_perl_pod_help ] ,
+	[ "Display Perl POD help for this script" , \&display_perl_pod_help ] ,
 	[ "Display help info" , \&display_help_info ] ,
-	[ "Display a summary of filename extensions" , \&ext_summary ] ,
-	[ "Display a list of files with no extension" , \&no_extension ] ,
+	[ "Display summary of filename extensions" , \&ext_summary ] ,
+	[ "Display list of files with no extension" , \&no_extension ] ,
 	[ "Display the head and tail of a member" , \&head_tail_member ] ,
 );
 my $num_menu_entries = scalar @main_menu;
+my $menu_maxlen = 0;
 my $CONSOLE;
 my @console_info = ();
 my %console_info = ();
@@ -151,7 +152,7 @@ The default text editor is "notepad" which can be overriden.
 The default paging program is "more" which can be overriden.
 
 When specifying a member name parameter if you enter a '#' followed by
-a 1 origin number thenb then it is assumed you are referring to an entry
+a 1 origin number then then it is assumed you are referring to an entry
 in the last search results.
 HELP
 
@@ -548,14 +549,22 @@ sub parse_parameters
 
 sub display_menu
 {
-	my ( $index , $ref , @list );
+	my ( $index , $ref , @list , $len , $num );
 
-	printf "\n%2d - %s\n",0,"Exit";
-	for ( $index = 1 ; $index <= $num_menu_entries ; ++$index ) {
-		$ref = $main_menu[$index-1];
+	printf "%2d - %-${menu_maxlen}.${menu_maxlen}s ",0,"Exit";
+	for ( $index = 0 , $num = 1 ; $index < $num_menu_entries ; ++$index , ++$num ) {
+		$ref = $main_menu[$index];
 		@list = @$ref;
-		printf "%2d - %s\n",$index,$list[0];
+		if ( $num & 1 ) {
+			printf "%2d - %s\n",$num,$list[0];
+		} # IF
+		else {
+			printf "%2d - %-${menu_maxlen}.${menu_maxlen}s ",$num,$list[0];
+		} # ELSE
 	} # FOR
+	if ( $num_menu_entries & 1 ) {
+		print "\n";
+	} # IF
 
 	return;
 } # end of display_menu
@@ -1467,7 +1476,7 @@ sub head_tail_member
 
 MAIN:
 {
-	my ( $status , $errmsg , $choice , $ref , @list );
+	my ( $status , $errmsg , $choice , $ref , @list , $len , $index );
 
 	$status = getopts("dhstrH:T:p:moe:ni",\%options);
 	if ( $options{"h"} ) {
@@ -1482,6 +1491,15 @@ MAIN:
 		die("Options 's' and 't' are mutually exclusive\n");
 	} # IF
 	$toggle_maxlen = (reverse sort { $a <=> $b} map { length $_ } @toggle_options)[0];
+	$menu_maxlen = 0;
+	for ( $index = 1 ; $index <= $num_menu_entries ; ++$index ) {
+		$ref = $main_menu[$index-1];
+		@list = @$ref;
+		$len = length $list[0];
+		if ( $len > $menu_maxlen ) {
+			$menu_maxlen = $len;
+		} # IF
+	} # FOR
 
 	$CONSOLE = new Win32::Console();
 	unless ( defined $CONSOLE ) {
@@ -1525,6 +1543,7 @@ MAIN:
 			next;
 		} # UNLESS
 		$choice = $&;
+		debug_print("Your choice was ${choice}\n");
 		if ( $choice == 0 ) {
 			last;
 		} # IF
@@ -1536,6 +1555,7 @@ MAIN:
 
 		$ref = $main_menu[$choice-1];
 		@list = @$ref;
+		debug_print("Your choice was $list[0]\n");
 		$list[1]->();
 		push @history,$list[0];
 		push @times,time;
