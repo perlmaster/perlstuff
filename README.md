@@ -36,6 +36,8 @@ lsrand.pl - display ls style info for files with random ordering
 headtail.pl - list the beginning and end of a file
 shuffle.pl - randomly shuffle the lines of text in a file
 squeeze.pl - squeeze multiple consecutive blank lines into 1 blank line
+show-db.pl - show a list of databases under a MySQL server
+show-tables.pl - show a list of tables under a MySQL database
 
 
 the other files in this repository are files that are "required" by the above named scripts
