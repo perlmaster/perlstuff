@@ -20,17 +20,24 @@ use Getopt::Std;
 use File::stat;
 use Fcntl;
 use File::Spec;
+use File::Copy;
+use Win32::Console;
 use FindBin;
 use lib $FindBin::Bin;
 
 require "time_date.pl";
 require "comma_format.pl";
 require "list_file_info.pl";
+require "display_pod_help.pl";
+require "list_columns_style.pl";
 
-my %options = ( "d" => 0 , "h" => 0 , "t" => 0 , "T" => 0 ,"f" => 0 , "D" => '.' , "l" => 0 , "p" => 0 , "r" => 0 , "k" => 0 , "o" => 0 , "g" => 0 );
+my %options = (
+	"d" => 0 , "h" => 0 , "t" => 0 , "T" => 0 ,"f" => 0 , "D" => '.' , "p" => 0 , "r" => 0 , "k" => 0 , "o" => 0 , "g" => 0 , "C" => 0
+);
 my %matched_files = ();
 my @patterns;
 my $maxlen;
+my ( $CONSOLE , @console_info , %console_info );
 
 my ( $dirsep );
 
@@ -242,32 +249,41 @@ sub process_dir
 MAIN:
 {
 	my ( $status , $dirname , $command , @files , @mtimes , @indices , $style );
+	my ( $path , $destpath );
 
-	$status = getopts("hdtTfD:e:lprkogw",\%options);
+	$status = getopts("ChdtTfD:e:prkogwc:",\%options);
 	if ( $options{"h"} ) {
-		if ( $^O =~ m/MSWin/ ) {
-# Windows stuff goes here
-			system("pod2text $0 | more");
-			##  system("pod2man $0 | nroff -man | less -M");
-		} # IF
-		else {
-# Non-Windows stuff (i.e. UNIX) goes here
-			system("pod2man $0 | nroff -man | less -M");
-		} # ELSE
+		display_pod_help($0);
 		exit 0;
 	} # IF
 	unless ( $status && 0 < @ARGV ) {
-		die("Usage : $0 [-dhtTflprkogw] [-e extension] [-D dirname] pattern [... pattern]\n");
+		die("Usage : $0 [-CdhtTfprkogw] [-c dirname] [-e extension] [-D dirname] pattern [... pattern]\n");
 	} # UNLESS
 
 	if ( $options{"t"} && $options{"T"} ) {
 		die("options 't' and 'T' are mutually exclusive\n");
+	} # IF
+	if ( exists $options{'c'} && ! -d $options{'c'} ) {
+		die("'$options{'c'} is not an existing directory.\n");
 	} # IF
 
 	if ( $^O =~ m/MSWin/ ) {
 		$options{"o"} = 1;
 		$options{"g"} = 1;
 	} # IF
+
+	$CONSOLE = new Win32::Console();
+	unless ( defined $CONSOLE ) {
+		die("Can't create console object : $!\n");
+		exit 1;
+	} # UNLESS
+	@console_info = $CONSOLE->Info();
+	%console_info = (
+		"columns" => $console_info[0] ,
+		"rows" => $console_info[1] ,
+		"max_columns" => $console_info[9] ,
+		"max_rows" => $console_info[10]
+	);
 
 	$dirname = $options{'D'};
 	@patterns = @ARGV;
@@ -283,6 +299,7 @@ MAIN:
 	} else {
 		@indices = ( 0 .. $#mtimes );
 	} # ELSE
+
 	if ( $options{'w'} ) {
 		$maxlen = (sort { $b <=> $a } map { length $_ } @files)[0];
 		foreach my $index ( @indices ) {
@@ -290,10 +307,29 @@ MAIN:
 		} # FOREACH
 	} # IF
 	else {
-		foreach my $index ( @indices ) {
-			list_file_info_full($files[$index],\%options);
-		} # FOREACH
+		if ( $options{"C"} ) {
+			@files = @files[@indices];
+			list_columns_style(\@files,$console_info{'columns'},undef,\*STDOUT);
+		} # IF
+		else {
+			foreach my $index ( @indices ) {
+				list_file_info_full($files[$index],\%options);
+			} # FOREACH
+		} # ELSE
 	} # ELSE
+
+	if ( exists $options{"c"} ) {
+		foreach my $entry ( @files ) {
+			$path = File::Spec->catfile($dirname,$entry);
+			$destpath = File::Spec->catfile($options{"c"},$entry);
+			unless ( copy($path,$destpath) ) {
+				warn("copy from $path to $destpath failed : $!<BR>");
+			} # UNLESS
+			else {
+				print "Copied $path to $destpath\n";
+			} # ELSE
+		} # FOREACH
+	} # IF
 
 
 	exit 0;
@@ -316,7 +352,6 @@ Run "ls -ld" for matched files.
   -d - activate debug mode
   -h - produce this summary
   -f - just list the filenames
-  -l - when listing file information , use the system "ls" command
   -T - sort by time of modification , newest first
   -t - sort by time of modification , oldest first
   -e pattern - only report on files with an extension matching this pattern
@@ -327,6 +362,8 @@ Run "ls -ld" for matched files.
   -g - do not display group name
   -o - do not display owner name
   -w - count lines and characters just like the wc command
+  -c dirname - copy listed files to the named directory
+  -C - list filenames in a compact format
 
 =head1 PARAMETERS
 
