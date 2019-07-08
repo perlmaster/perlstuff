@@ -26,9 +26,12 @@ require "size_to_gb.pl";
 require "print_lists.pl";
 require "get_dir_entries.pl";
 require "list_columns_style.pl";
+require "display_pod_help.pl";
 
-my %options = ( "d" => 0 , "r" => 0 , "n" => 0 , "i" => 0 , "c" => 0 ,
-					"R" => 0  , "b" => 0 , "h" => 0 , "p" => 0 , "C" => 0 , "L" => 100 );
+my %options = (
+	"d" => 0 , "r" => 0 , "n" => 0 , "i" => 0 , "c" => 0 , "a" => 0 ,
+	"R" => 0  , "b" => 0 , "h" => 0 , "p" => 0 , "C" => 0 , "L" => 119
+);
 my ( %extensions , $no_extension_total , @no_extension );
 my ( %extension_bytes , %comma_bytes , $extension_pattern , $no_extension_bytes );
 my ( $total_extension_files , $total_extension_bytes , $ext_summary_header );
@@ -146,8 +149,8 @@ sub scan_dir
 			$no_extension_total += 1;
 			$no_extension_bytes += $bytes;
 			push(@no_extension,$entry);
-		} # IF
-		else {
+		} # IF no extension
+		else { # Process the extension
 			$extension = $fields[$#fields];
 			if ( $options{"i"} ) {
 				$extension = lc $extension;
@@ -160,23 +163,30 @@ sub scan_dir
 				if ( exists $extensions{$extension} ) {
 					$extensions{$extension} += 1;
 					$extension_bytes{$extension} += $bytes;
-					if ( $options{"R"} == 0 && $status->mtime > $extension_times{$extension}{'mtime'} ) {
-						$extension_times{$extension}{'mtime'} = $status->mtime;
-						$extension_times{$extension}{'file'} = $path;
-					} # IF
-					if ( $options{"R"} == 1 && $status->mtime < $extension_times{$extension}{'mtime'} ) {
-						$extension_times{$extension}{'mtime'} = $status->mtime;
-						$extension_times{$extension}{'file'} = $path;
+
+					if ( $options{'a'} ) {
+						if ( $status->mtime > $extension_times{$extension}{'newest'} ) {
+							$extension_times{$extension}{'newest'} = $status->mtime;
+							$extension_times{$extension}{'newest_file'} = $path;
+						} # IF
+						if ( $status->mtime < $extension_times{$extension}{'oldest'} ) {
+							$extension_times{$extension}{'oldest'} = $status->mtime;
+							$extension_times{$extension}{'oldest_file'} = $path;
+						} # IF
 					} # IF
 				} # IF
 				else {
 					$extensions{$extension} = 1;
 					$extension_bytes{$extension} = $bytes;
-					$extension_times{$extension}{'mtime'} = $status->mtime;
-					$extension_times{$extension}{'file'} = $path;
+					if ( $options{'a'} ) {
+						$extension_times{$extension}{'newest'} = $status->mtime;
+						$extension_times{$extension}{'newest_file'} = $path;
+						$extension_times{$extension}{'oldest'} = $status->mtime;
+						$extension_times{$extension}{'oldest_file'} = $path;
+					} # IF
 				} # ELSE
 			} # IF extension matches pattern
-		} # ELSE
+		} # ELSE file has an extension
 		if ( $options{"r"} ) {
 			if ( -d $path ) {
 				push @subdirs,$path;
@@ -215,22 +225,15 @@ MAIN:
 {
 	my ( $dirname , $count , $maxlen , $status , $extension );
 	my ( @headers , @underline , $maxlen_comma , @indices , @ext_list );
-	my ( @ext_bytes , @ext_kb , @ext_count , @arrays , @recent );
+	my ( @ext_bytes , @ext_kb , @ext_count , @arrays , @newest , @oldest );
 
-	$status = getopts("bcRindre:hpCL:",\%options);
+	$status = getopts("bcRindre:hpCL:a",\%options);
 	if ( $options{"h"} ) {
-		if ( $^O =~ m/MSWin/ ) {
-# Windows stuff goes here
-			system("pod2text $0 | more");
-		} # IF
-		else {
-# Non-Windows stuff (i.e. UNIX) goes here
-			system("pod2man $0 | nroff -man | less -M");
-		} # ELSE
+		display_pod_help($0);
 		exit 0;
 	} # IF
 	unless ( $status ) {
-		die("Usage : $0 [-L line_length_limit] [-{c|b|C}hindrRp] [-e ext_pattern] [dirname]\n");
+		die("Usage : $0 [-L line_length_limit] [-{c|b|C}hindrRpa] [-e ext_pattern] [dirname]\n");
 	} # UNLESS
 	if ( $options{"c"} + $options{"b"} > 1 ) {
 		die("Options 'c' and 'b' are mutually exclusive.\n");
@@ -238,13 +241,14 @@ MAIN:
 	if ( $options{"p"} + $options{"C"} > 1 ) {
 		die("Options 'p' and 'C' are mutually exclusive.\n");
 	} # IF
+
 	if ( $^O =~ m/MSWin/ ) {
 		$num_cols = 100;
 	} # IF
 	else {
 		$num_cols = `tput cols`;
+		chomp $num_cols;
 	} # ELSE
-	chomp $num_cols;
 	if ( defined $num_cols && $num_cols > 0 ) {
 		$options{"L"} = $num_cols;
 	} # IF
@@ -325,35 +329,47 @@ MAIN:
 	@ext_bytes = ();
 	@ext_kb = ();
 	@ext_count = ();
-	@recent = ();
+	@newest = ();
+	@oldest = ();
 	foreach my $ext ( @ext_list ) {
 		push @ext_bytes , $comma_bytes{$ext};
 		push @ext_kb , size_to_gb($extension_bytes{$ext});
 		push @ext_count , $extensions{$ext};
 		$total_extension_files += $extensions{$ext};
 		$total_extension_bytes += $extension_bytes{$ext};
-		push @recent,$extension_times{$ext}{'file'};
+		if ( $options{'a'} ) {
+			push @newest,$extension_times{$ext}{'newest_file'};
+			push @oldest,$extension_times{$ext}{'oldest_file'};
+		} # IF
 	} # FOREACH
-	@arrays = ( \@ext_list , \@ext_count , \@ext_bytes , \@ext_kb , \@recent );
-	@headers = ( "Extension" , "Count" , "Bytes" , "KB/MB/GB" );
-	if ( $options{"R"} ) {
+	@arrays = ( \@ext_list , \@ext_count , \@ext_bytes , \@ext_kb );
+	if ( $options{'a'} ) {
+		push @arrays, \@newest;
+		push @arrays, \@oldest;
+	} # IF
+	@headers = ( "Extension" , "Count" , "Bytes" , "KB/MB/GB/TB" );
+	if ( $options{'a'} ) {
+		push @headers,"Newest";
 		push @headers,"Oldest";
 	} # IF
-	else {
-		push @headers,"Newest";
-	} # ELSE
 
 	push @ext_list," ";
 	push @ext_count," ";
 	push @ext_bytes," ";
 	push @ext_kb," ";
-	push @recent," ";
+	if ( $options{'a'} ) {
+		push @newest," ";
+		push @oldest," ";
+	} # IF
 
 	push @ext_list,"(total)";
 	push @ext_count,$total_extension_files;
 	push @ext_bytes,comma_format($total_extension_bytes);
 	push @ext_kb,size_to_gb($total_extension_bytes);
-	push @recent," ";
+	if ( $options{'a'} ) {
+		push @newest," ";
+		push @oldest," ";
+	} # IF
 
 	print_lists( \@arrays , \@headers , '-' );
 
@@ -366,7 +382,7 @@ ext.pl - summarize files by extension
 
 =head1 SYNOPSIS
 
-ext.pl [-L line_length_limit] [-{c|b}indrR] [-e ext_pattern] [dirname]
+ext.pl [-L line_length_limit] [-{c|b}indrRa] [-e ext_pattern] [dirname]
 
 =head1 DESCRIPTION
 
@@ -386,6 +402,7 @@ This perl script will summarize the files in a directory by their extensions.
   -C - only show for CGI files (.cgi , .pl , .pm , .css , .js , .htm , .html)
   -h - produce this summary
   -L length - override line length limit
+  -a - show the age limits (youngest and oldest files for each extension)
 
 =head1 EXAMPLES
 
