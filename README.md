@@ -38,6 +38,7 @@ shuffle.pl - randomly shuffle the lines of text in a file
 squeeze.pl - squeeze multiple consecutive blank lines into 1 blank line
 show-db.pl - show a list of databases under a MySQL server
 show-tables.pl - show a list of tables under a MySQL database
+big.pl - list info for the largest files under a directory tree
 
 
 the other files in this repository are files that are "required" by the above named scripts
