@@ -19,6 +19,7 @@ use warnings;
 use Getopt::Std;
 use Fcntl;
 use File::stat;
+use File::Basename;
 use Mail::Sendmail;
 use Data::Dumper;
 use FindBin;
@@ -31,12 +32,14 @@ require "list_file_info.pl";
 require "display_pod_help.pl";
 
 my ( %members_info , @members_names , $num_members , $exit_flag );
-my %options = ( "d" => 0 , "h" => 0 );
-my $pager = "";
+my %options = ( "d" => 0 , "h" => 0 , "C" => 0 );
+my $pager = "more";
+my @matched_names = ();
 
 my %cmds = (
 	"l" => [ \&cmd_list_member_attributes , 'list member attributes (ala ls)' ],
 	"c" => [ \&cmd_list_member_contents , 'list member contents (ala cat)' ],
+	"y" => [ \&cmd_page_member_contents , 'list member contents (ala less)' ],
 	"X" => [ \&cmd_expand_member_content_tabs , 'list member contents with expanded tabs (ala expand)' ],
 	"w" => [ \&cmd_count_lines , 'count lines and characters (ala wc -lc)' ],
 	"E" => [ \&cmd_email_member_contents , 'Email member contents' ],
@@ -44,17 +47,18 @@ my %cmds = (
 	"n" => [ \&cmd_list_member_contents_with_line_numbers , 'list member contents with line numbers(ala cat -n)' ],
 	"e" => [ \&cmd_search_member_contents , 'search member contents (ala egrep)' ],
 	"v" => [ \&cmd_search_member_contents_not_found , 'search members for non inclusion of patterns' ],
-	"a" => [ \&cmd_search_member_contents_multiple , 'search member contents for multiple (ala egrep)' ],
+	"a" => [ \&cmd_search_member_contents_multiple , 'search member contents for multiple patterns (ala egrep)' ],
 	"s" => [ \&cmd_save_member_contents , 'save member contents to disk' ],
 	"S" => [ \&cmd_save_member_contents_with_overwrite , 'save member contents to disk (with overwrite)' ],
+	"B" => [ \&cmd_save_member_contents_with_overwrite_basename , 'save member contents to disk by basename (with overwrite)' ],
 	"m" => [ \&cmd_list_member_names , 'list all member names' ],
 	"M" => [ \&cmd_list_member_names_with_attributes , 'list all member names with attributes' ],
 	"t" => [ \&cmd_list_member_names_with_attributes_time_sorted , 'list member names with attributes sorted by time' ],
 	"T" => [ \&cmd_list_member_names_with_attributes_time_sorted_desc , 'list member names with attributes sorted by time in descending order' ],
 	"h" => [ \&cmd_summary , 'brief commnds summary' ],
 	"H" => [ \&cmd_help , 'detailed command help' ],
-	"P" => [ \&cmd_paging , 'activate/deactivate paging' ],
-	"x" => [ \&cmd_not_found , 'list names of members that do noy include a pattern' ],
+	"P" => [ \&cmd_set_pager , 'activate/deactivate paging' ],
+	"x" => [ \&cmd_not_found , 'list names of members that do not include a pattern' ],
 	"W" => [ \&cmd_notopics , 'list commands without detailed help' ],
 );
 
@@ -321,7 +325,132 @@ sub open_tempfile
 
 ######################################################################
 #
-# Function  : cmd_paging
+# Function  : get_member_name
+#
+# Purpose   : Get a member name for a command
+#
+# Inputs    : $_[0] - reference to array of parameters
+#
+# Output    : (none)
+#
+# Returns   : IF problem THEN empty string ELSE member name
+#
+# Example   : $member_name = get_member_name(\@parms);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub get_member_name
+{
+	my ( $ref_parms ) = @_;
+	my ( $member_name , @parms , $num_parms , $count , $index );
+
+	@parms = @$ref_parms;
+	$num_parms = scalar @parms;
+	if ( $num_parms > 0 ) {
+		$member_name = shift @parms;
+	} # IF
+	else {
+		print "Enter member name ==> ";
+		$member_name = <STDIN>;
+		chomp $member_name;
+	} # ELSE
+	@$ref_parms = @parms;
+	if ( $member_name =~ m/^{(\d+)$/ ) {
+		$count = scalar @matched_names;
+		if ( $count == 0 ) {
+			print "\nNo matched names currently defined.\n";
+		} # IF
+		else {
+			$index = $1;
+			if ( $index < 1 || $index > $count ) {
+				print "\nmatched names index out of range (1 - $count)\n";
+				$member_name = "";
+			} # IF
+			else {
+				$member_name = $matched_names[$index-1];
+			} # ELSE
+		} # ELSE
+	} # IF
+
+	return $member_name;
+} # end of get_member_name
+
+######################################################################
+#
+# Function  : list_member_attributes
+#
+# Purpose   : List the attributs of a single TAR file member
+#
+# Inputs    : $_[0] - reference to hash of member attributes
+#             $_[1] - member name
+#
+# Output    : List of TAR file members
+#
+# Returns   : nothing
+#
+# Example   : list_member_attributes($ref_attr,$member_name);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub list_member_attributes
+{
+	my ( $ref_member_attributes , $member_name ) = @_;
+	my ( $info );
+
+	$info = generate_member_attributes($ref_member_attributes,$member_name);
+	print "$info\n";
+
+	return;
+} # end of list_member_attributes
+
+######################################################################
+#
+# Function  : generate_member_attributes
+#
+# Purpose   : Generate the attributs of a single TAR file member
+#
+# Inputs    : $_[0] - reference to hash of member attributes
+#             $_[1] - member name
+#
+# Output    : List of TAR file members
+#
+# Returns   : string containing the attributes
+#
+# Example   : $info = generate_member_attributes($ref_attr,$member_name);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub generate_member_attributes
+{
+	my ( $ref_member_attributes , $member_name ) = @_;
+	my ( $info , $modtime , $buffer , $perms , $file_mode );
+
+	$modtime = $ref_member_attributes->{member_modtime};
+	$modtime =~ s/\0//g;
+	$modtime = oct($modtime);
+	$buffer = format_time_date($modtime,"");
+	$file_mode = $ref_member_attributes->{member_mode};
+
+	$perms = format_mode($file_mode);
+
+	$info = sprintf "%08o %s %8s %8s %10d ",$file_mode,$perms,
+				$ref_member_attributes->{member_uname},
+				$ref_member_attributes->{member_gname},
+				$ref_member_attributes->{member_size_decimal};
+	$info .= "$buffer $member_name";
+
+	return $info;
+} # end of generate_member_attributes
+
+######################################################################
+#
+# Function  : cmd_set_pager
 #
 # Purpose   : Activate / deactivate paging
 #
@@ -332,13 +461,13 @@ sub open_tempfile
 #
 # Returns   : nothing
 #
-# Example   : cmd_paging($tarfile,\@parms);
+# Example   : cmd_set_pager($tarfile,\@parms);
 #
 # Notes     : (none)
 #
 ######################################################################
 
-sub cmd_paging
+sub cmd_set_pager
 {
 	my ( $tarfile , $ref_parms ) = @_;
 	my ( @parms , $num_parms );
@@ -346,16 +475,15 @@ sub cmd_paging
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
 	if ( $num_parms > 0 ) {
-		$pager = $parms[0];
+		$pager = join(" ",@parms);
 		print "\nPager now set to '$pager'\n";
 	} # IF
 	else {
-		$pager = "";
-		print "\nPaging is now off\n";
+		print "\nPaging is currently handled by '$pager'\n";
 	} # ELSE
 
 	return;
-} # end of cmd_paging
+} # end of cmd_set_pager
 
 ######################################################################
 #
@@ -444,12 +572,13 @@ sub cmd_not_found
 # Purpose   : Process a TAR file.
 #
 # Inputs    : $_[0] - name of  tar file
+#             $_[1] - ref to array of parameters
 #
 # Output    : List of TAR file members
 #
 # Returns   : nothing
 #
-# Example   : cmd_list_member_names($tarfile);
+# Example   : cmd_list_member_names($tarfile,\@parms);
 #
 # Notes     : (none)
 #
@@ -457,107 +586,37 @@ sub cmd_not_found
 
 sub cmd_list_member_names
 {
-	my ( $tarfile ) = @_;
-	my ( @numbers , $tempfile );
+	my ( $tarfile , $ref_parms ) = @_;
+	my ( @numbers , @parms , $name_pattern , $count );
+	my ( $num_parms );
 
-	@numbers = ( map { sprintf "%4d",$_} (1 .. $num_members) );
-
-	if ( $pager ne "" ) {
-		if ( open_tempfile(\$tempfile) < 0 ) {
+	@parms = @$ref_parms;
+	$num_parms = scalar @parms;
+	if ( $num_parms > 0 ) {
+		$name_pattern = shift @parms;
+		@matched_names = grep /${name_pattern}/i,@members_names;
+		$count = scalar @matched_names;
+		if ( $count == 0 ) {
+			print "No member names were matched by '$name_pattern'\n";
 			return;
 		} # IF
-		print TEMP join("\n", map { "($numbers[$_]) $members_names[$_]" } (0 .. $#members_names)),"\n";
-		system("${pager} ${tempfile}");
-		unlink $tempfile;
 	} # IF
 	else {
-		print join("\n", map { "($numbers[$_]) $members_names[$_]" } (0 .. $#members_names)),"\n";
+		@matched_names = @members_names;
+		$count = scalar @matched_names;
 	} # ELSE
+
+	@numbers = ( map { sprintf "%4d",$_} (1 .. $count) );
+	unless ( open(PIPE,"|$pager") ) {
+		warn("open of pipe to '$pager' failed : $!\n");
+		return;
+	} # UNLESS
+
+	print PIPE join("\n", map { "($numbers[$_]) $matched_names[$_]" } (0 .. $#matched_names)),"\n";
+	close PIPE;
 
 	return;
 } # end of cmd_list_member_names
-
-######################################################################
-#
-# Function  : list_member_attributes
-#
-# Purpose   : List the attributs of a single TAR file member
-#
-# Inputs    : $_[0] - reference to hash of member attributes
-#             $_[1] - member name
-#
-# Output    : List of TAR file members
-#
-# Returns   : nothing
-#
-# Example   : list_member_attributes($ref_attr,$member_name);
-#
-# Notes     : (none)
-#
-######################################################################
-
-sub list_member_attributes
-{
-	my ( $ref_member_attributes , $member_name ) = @_;
-	my ( $modtime , $buffer , $perms , $file_mode );
-
-	$modtime = $ref_member_attributes->{member_modtime};
-	$modtime =~ s/\0//g;
-	$modtime = oct($modtime);
-	$buffer = format_time_date($modtime,"");
-	$file_mode = $ref_member_attributes->{member_mode};
-
-	$perms = format_mode($file_mode);
-
-	printf "%08o %s %8s %8s %10d ",$file_mode,$perms,
-				$ref_member_attributes->{member_uname},
-				$ref_member_attributes->{member_gname},
-				$ref_member_attributes->{member_size_decimal};
-	print "$buffer $member_name\n";
-
-	return;
-} # end of list_member_attributes
-
-######################################################################
-#
-# Function  : generate_member_attributes
-#
-# Purpose   : Generate the attributs of a single TAR file member
-#
-# Inputs    : $_[0] - reference to hash of member attributes
-#             $_[1] - member name
-#
-# Output    : List of TAR file members
-#
-# Returns   : string containing the attributes
-#
-# Example   : $info = generate_member_attributes($ref_attr,$member_name);
-#
-# Notes     : (none)
-#
-######################################################################
-
-sub generate_member_attributes
-{
-	my ( $ref_member_attributes , $member_name ) = @_;
-	my ( $info , $modtime , $buffer , $perms , $file_mode );
-
-	$modtime = $ref_member_attributes->{member_modtime};
-	$modtime =~ s/\0//g;
-	$modtime = oct($modtime);
-	$buffer = format_time_date($modtime,"");
-	$file_mode = $ref_member_attributes->{member_mode};
-
-	$perms = format_mode($file_mode);
-
-	$info = sprintf "%08o %s %8s %8s %10d ",$file_mode,$perms,
-				$ref_member_attributes->{member_uname},
-				$ref_member_attributes->{member_gname},
-				$ref_member_attributes->{member_size_decimal};
-	$info .= "$buffer $member_name";
-
-	return $info;
-} # end of generate_member_attributes
 
 ######################################################################
 #
@@ -584,7 +643,7 @@ sub list_members
 {
 	my ( $direction , $tarfile , $ref_names ) = @_;
 	my ( $ref_member_attributes , $modtime , @indices , @modtimes , $name );
-	my ( $data , $tempfile , @names );
+	my ( $data , @names );
 
 	@modtimes = ();
 	@names = @$ref_names;
@@ -610,17 +669,13 @@ sub list_members
 	} # FOREACH
 	$data .= "\n${num_members} members in TAR file ${tarfile}\n\n";
 
-	if ( $pager ne "" ) {
-		if ( open_tempfile(\$tempfile) < 0 ) {
-			return;
-		} # IF
-		print TEMP "$data";
-		system("${pager} ${tempfile}");
-		unlink $tempfile;
-	} # IF
-	else {
-		print "$data";
-	} # ELSE
+	unless ( open(PIPE,"|$pager") ) {
+		warn("open of pipe to '$pager' failed : $!\n");
+		return;
+	} # UNLESS
+
+	print PIPE "$data";
+	close PIPE;
 
 	return;
 } # end of list_members
@@ -647,24 +702,24 @@ sub list_members
 sub cmd_list_member_names_with_attributes_time_sorted_desc
 {
 	my ( $tarfile , $ref_parms ) = @_;
-	my ( @parms , $num_parms , $name_pattern , @nameslist , $num_names );
+	my ( @parms , $num_parms , $name_pattern , $num_names );
 
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
 	if ( $num_parms < 1 ) {
-		@nameslist = @members_names;
+		@matched_names = @members_names;
 	} # IF
 	else {
 		$name_pattern = $parms[0];
-		@nameslist = grep /${name_pattern}/i,@members_names;
-		$num_names = scalar @nameslist;
+		@matched_names = grep /${name_pattern}/i,@members_names;
+		$num_names = scalar @matched_names;
 		if ( $num_names < 1 ) {
 			print "\nNo member names matched '$name_pattern'\n\n";
 			return;
 		} # IF
 	} # ELSE
 
-	list_members(1,$tarfile,\@nameslist);
+	list_members(1,$tarfile,\@matched_names);
 
 	return;
 } # end of cmd_list_member_names_with_attributes_time_sorted_desc
@@ -691,24 +746,24 @@ sub cmd_list_member_names_with_attributes_time_sorted_desc
 sub cmd_list_member_names_with_attributes_time_sorted
 {
 	my ( $tarfile , $ref_parms ) = @_;
-	my ( @parms , $num_parms , $name_pattern , @nameslist , $num_names );
+	my ( @parms , $num_parms , $name_pattern , $num_names );
 
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
 	if ( $num_parms < 1 ) {
-		@nameslist = @members_names;
+		@matched_names = @members_names;
 	} # IF
 	else {
 		$name_pattern = $parms[0];
-		@nameslist = grep /${name_pattern}/i,@members_names;
-		$num_names = scalar @nameslist;
+		@matched_names = grep /${name_pattern}/i,@members_names;
+		$num_names = scalar @matched_names;
 		if ( $num_names < 1 ) {
 			print "\nNo member names matched '$name_pattern'\n\n";
 			return;
 		} # IF
 	} # ELSE
 
-	list_members(0,$tarfile,\@nameslist);
+	list_members(0,$tarfile,\@matched_names);
 
 	return;
 } # end of cmd_list_member_names_with_attributes_time_sorted
@@ -720,12 +775,13 @@ sub cmd_list_member_names_with_attributes_time_sorted
 # Purpose   : Process a TAR file.
 #
 # Inputs    : $_[0] - name of  tar file
+#             $_[1] - ref to array of parameters
 #
 # Output    : List of TAR file members
 #
 # Returns   : nothing
 #
-# Example   : cmd_list_member_names_with_attributes($tarfile);
+# Example   : cmd_list_member_names_with_attributes($tarfile,\@parms);
 #
 # Notes     : (none)
 #
@@ -733,28 +789,40 @@ sub cmd_list_member_names_with_attributes_time_sorted
 
 sub cmd_list_member_names_with_attributes
 {
-	my ( $tarfile ) = @_;
-	my ( $ref_member_attributes , $info , $data , $tempfile );
+	my ( $tarfile , $ref_parms ) = @_;
+	my ( $ref_member_attributes , $info , $data , $tempfile , @parms , $num_parms );
+	my ( $name_pattern , $count );
+
+	@parms = @$ref_parms;
+	$num_parms = scalar @parms;
+	if ( $num_parms > 0 ) {
+		$name_pattern = shift @parms;
+		@matched_names = grep /${name_pattern}/i,@members_names;
+		$count = scalar @matched_names;
+		if ( $count == 0 ) {
+			print "No member names were matched by '$name_pattern'\n";
+			return;
+		} # IF
+	} # IF
+	else {
+		@matched_names = @members_names;
+		$count = scalar @matched_names;
+	} # ELSE
 
 	$data = "";
-	foreach my $member_name ( @members_names ) {
+	foreach my $member_name ( @matched_names ) {
 		$ref_member_attributes = $members_info{$member_name};
 
 		$info = generate_member_attributes($ref_member_attributes,$member_name);
 		$data .= $info . "\n";
 	} # FOREACH
 
-	if ( $pager ne "" ) {
-		if ( open_tempfile(\$tempfile) < 0 ) {
-			return;
-		} # IF
-		print TEMP "$data\n${num_members} members in TAR file ${tarfile}\n\n";
-		system("${pager} ${tempfile}");
-		unlink $tempfile;
-	} # IF
-	else {
-		print "$data\n${num_members} members in TAR file ${tarfile}\n\n";
-	} # ELSE
+	unless ( open(PIPE,"|$pager") ) {
+		warn("open of pipe to '$pager' failed : $!\n");
+		return;
+	} # UNLESS
+	print "$data\n${num_members} members in TAR file ${tarfile}\n\n";
+	close PIPE;
 
 	return;
 } # end of cmd_list_member_names_with_attributes
@@ -781,7 +849,7 @@ sub cmd_list_member_attributes
 {
 	my ( $tarfile , $ref_parms ) = @_;
 	my ( $ref_member_attributes , @parms , $num_parms );
-	my ( @nameslist , $num_names , $name_pattern );
+	my ( $num_names , $name_pattern );
 
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
@@ -794,14 +862,14 @@ sub cmd_list_member_attributes
 		chomp $name_pattern;
 	} # ELSE
 
-	@nameslist = grep /${name_pattern}/i,@members_names;
-	$num_names = scalar @nameslist;
+	@matched_names = grep /${name_pattern}/i,@members_names;
+	$num_names = scalar @matched_names;
 	if ( $num_names < 1 ) {
 		print "\nNo member names matched '$name_pattern'\n\n";
 		return;
 	} # IF
 
-	foreach my $member_name ( @nameslist ) {
+	foreach my $member_name ( @matched_names ) {
 		$ref_member_attributes = $members_info{$member_name};
 		unless ( defined $ref_member_attributes ) {
 			print "\n$member_name is not a member of $tarfile\n";
@@ -868,38 +936,79 @@ sub cmd_summary
 sub cmd_list_member_contents
 {
 	my ( $tarfile , $ref_parms ) = @_;
-	my ( $member_name , $file_size , $buffer , @parms , $num_parms , $tempfile );
+	my ( $member_name , $file_size , $buffer , @parms , $num_parms );
 
-	@parms = @$ref_parms;
-	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
 	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
+	@parms = @$ref_parms;
 
 	$file_size = read_member_contents($tarfile,$member_name,\$buffer);
 	if ( $file_size < 0 ) {
 		return;
 	} # IF
 
-	if ( $pager ne "" ) {
-		if ( open_tempfile(\$tempfile) < 0 ) {
-			return;
-		} # IF
-		print TEMP "$buffer\n";
-		system("${pager} ${tempfile}");
-		unlink $tempfile;
-	} # IF
-	else {
-		print "$buffer\n";
-	} # ELSE
+	unless ( open(PIPE,"|$pager") ) {
+		warn("open of pipe to '$pager' failed : $!\n");
+		return;
+	} # UNLESS
+	print "$buffer\n";
+	close PIPE;
 
 	return;
 } # end of cmd_list_member_contents
+
+######################################################################
+#
+# Function  : cmd_page_member_contents
+#
+# Purpose   : Display the contents of a TAR file member.
+#
+# Inputs    : $_[0] - name of tarfile
+#             $_[1] - reference to array of parameters
+#
+# Output    : requested data
+#
+# Returns   : nothing
+#
+# Example   : cmd_page_member_contents($tarfile,\@parms);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub cmd_page_member_contents
+{
+	my ( $tarfile , $ref_parms ) = @_;
+	my ( $member_name , $file_size , $buffer , @parms , $num_parms , $tempfile );
+
+	if ( $pager eq "" ) {
+		print "\nPager not yet defined.\n";
+		return;
+	} # IF
+
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
+	@parms = @$ref_parms;
+
+	$file_size = read_member_contents($tarfile,$member_name,\$buffer);
+	if ( $file_size < 0 ) {
+		return;
+	} # IF
+
+	unless ( open(PIPE,"|$pager") ) {
+		warn("open of pipe to '$pager' failed : $!\n");
+		return;
+	} # UNLESS
+
+	print PIPE "$buffer";
+	close PIPE;
+
+	return;
+} # end of cmd_page_member_contents
 
 ######################################################################
 #
@@ -926,18 +1035,12 @@ sub cmd_expand_member_content_tabs
 	my ( $member_name , $file_size , $buffer , @parms , $num_parms , $tempfile );
 	my ( $tabsize , @lines , $num_lines , $expanded );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-		$num_parms -= 1;
-	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	if ( $num_parms > 0 ) {
 		$tabsize = shift @parms;
@@ -990,7 +1093,7 @@ sub cmd_count_lines
 {
 	my ( $tarfile , $ref_parms ) = @_;
 	my ( $file_size , $buffer , @parms , $num_parms , $tempfile );
-	my ( @lines , $num_lines , $name_pattern , $num_names , @nameslist );
+	my ( @lines , $num_lines , $name_pattern , $num_names );
 
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
@@ -1003,14 +1106,14 @@ sub cmd_count_lines
 		chomp $name_pattern;
 	} # ELSE
 
-	@nameslist = grep /${name_pattern}/i,@members_names;
-	$num_names = scalar @nameslist;
+	@matched_names = grep /${name_pattern}/i,@members_names;
+	$num_names = scalar @matched_names;
 	if ( $num_names < 1 ) {
 		print "\nNo member names matched '$name_pattern'\n\n";
 		return;
 	} # IF
 
-	foreach my $member_name ( @nameslist ) {
+	foreach my $member_name ( @matched_names ) {
 		$file_size = read_member_contents($tarfile,$member_name,\$buffer);
 		if ( $file_size < 0 ) {
 			return;
@@ -1052,17 +1155,12 @@ sub cmd_email_member_contents
 	my ( $member_name , $file_size , $buffer , @parms , $num_parms );
 	my ( %mail , $to );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-		$num_parms -= 1;
-	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	if ( $num_parms > 0 ) {
 		$to = shift @parms;
@@ -1126,16 +1224,12 @@ sub cmd_print_member_contents
 		return;
 	} # UNLESS
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	$file_size = read_member_contents($tarfile,$member_name,\$buffer);
 	if ( $file_size < 0 ) {
@@ -1431,17 +1525,12 @@ sub cmd_search_member_contents
 	my ( $member_name , $file_size , $buffer , $pattern );
 	my ( @parms , $case , $num_parms , @members , $count );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-		$num_parms -= 1;
-	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	if ( 0 < @parms ) {
 		$pattern = shift @parms;
@@ -1513,17 +1602,12 @@ sub cmd_search_member_contents_multiple
 	my ( $member_name , $file_size , $buffer , $pattern , @patterns );
 	my ( @parms , $case , $num_parms , @members , $count );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-		$num_parms -= 1;
-	} # IF
-	else {
-		print "Enter member name pattern ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	@patterns = @parms;
 	if ( 1 > @patterns ) {
@@ -1606,17 +1690,12 @@ sub cmd_search_member_contents_not_found
 	my ( $member_name , $file_size , $buffer , $pattern , @patterns );
 	my ( @parms , $case , $num_parms , @members , $count );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-		$num_parms -= 1;
-	} # IF
-	else {
-		print "Enter member name pattern ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	@patterns = @parms;
 	if ( 1 > @patterns ) {
@@ -1698,18 +1777,14 @@ sub cmd_list_member_contents_with_line_numbers
 {
 	my ( $tarfile , $ref_parms ) = @_;
 	my ( $member_name , $ref_member_attributes , $offset , $file_size , $buffer , @lines );
-	my ( $index , @parms , $num_parms , $data , $tempfile );
+	my ( $index , @parms , $num_parms , $data );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	$file_size = read_member_contents($tarfile,$member_name,\$buffer);
 	if ( $file_size < 0 ) {
@@ -1729,17 +1804,12 @@ sub cmd_list_member_contents_with_line_numbers
 		$data .= sprintf "%3d\t%s\n",$index+1,$lines[$index];
 	} # FOR
 
-	if ( $pager ne "" ) {
-		if ( open_tempfile(\$tempfile) < 0 ) {
-			return;
-		} # IF
-		print TEMP "$data";
-		system("${pager} ${tempfile}");
-		unlink $tempfile;
-	} # IF
-	else {
-		print "$data";
-	} # ELSE
+	unless ( open(PIPE,"|$pager") ) {
+		warn("open of pipe to '$pager' failed : $!\n");
+		return;
+	} # UNLESS
+	print "$data";
+	close PIPE;
 
 	return;
 } # end of cmd_list_member_contents_with_line_numbers
@@ -1769,17 +1839,12 @@ sub cmd_save_member_contents
 	my ( $member_name , $ref_member_attributes , @parms , $num_parms , $buffer );
 	my ( $member_size );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-		$num_parms -= 1;
-	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	$ref_member_attributes = $members_info{$member_name};
 	unless ( defined $ref_member_attributes ) {
@@ -1828,17 +1893,12 @@ sub cmd_save_member_contents_with_overwrite
 	my ( $member_name , $ref_member_attributes , @parms , $num_parms , $buffer );
 	my ( $member_size , $user_reply );
 
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
 	@parms = @$ref_parms;
 	$num_parms = scalar @parms;
-	if ( $num_parms > 0 ) {
-		$member_name = shift @parms;
-		$num_parms -= 1;
-	} # IF
-	else {
-		print "Enter member name ==> ";
-		$member_name = <STDIN>;
-		chomp $member_name;
-	} # ELSE
 
 	$ref_member_attributes = $members_info{$member_name};
 	unless ( defined $ref_member_attributes ) {
@@ -1867,6 +1927,67 @@ sub cmd_save_member_contents_with_overwrite
 
 	return;
 } # end of cmd_save_member_contents_with_overwrite
+
+######################################################################
+#
+# Function  : cmd_save_member_contents_with_overwrite_basename
+#
+# Purpose   : Process a "save member by basename" command.
+#
+# Inputs    : $_[0] - name of  tar file
+#             $_[1] - reference to array of parameters
+#
+# Output    : (none)
+#
+# Returns   : nothing
+#
+# Example   : cmd_save_member_contents_with_overwrite_basename($tarfile);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub cmd_save_member_contents_with_overwrite_basename
+{
+	my ( $tarfile , $ref_parms ) = @_;
+	my ( $member_name , $ref_member_attributes , @parms , $num_parms , $buffer );
+	my ( $member_size , $user_reply , $member_base_name );
+
+	$member_name = get_member_name($ref_parms);
+	if ( $member_name eq "" ) {
+		return;
+	} # IF
+	@parms = @$ref_parms;
+	$num_parms = scalar @parms;
+	$member_base_name = basename($member_name);
+
+	$ref_member_attributes = $members_info{$member_name};
+	unless ( defined $ref_member_attributes ) {
+		print "$member_name is not a member of $tarfile\n";
+		return;
+	} # UNLESS
+
+	$member_size = read_member_contents($tarfile,$member_name,\$buffer);
+	if ( -e $member_base_name ) {
+		print "\nFile $member_base_name already exists , do you want to overwrite it ? (y/n) ";
+		$user_reply = <STDIN>;
+		$user_reply =~ s/^\s+//g;
+		chomp $user_reply;
+		unless ( $user_reply =~ m/^yes|^y/i ) {
+			print "Request aborted at user's request.\n";
+			return;
+		} # UNLESS
+	} # If
+	unless ( open(OUTPUT,">$member_base_name") ) {
+		print "open failed for file '$member_base_name' : $!\n";
+		return;
+	} # UNLESS
+	print OUTPUT "$buffer";
+	close OUTPUT;
+	list_file_info_full($member_base_name,{ "g" => 1 , "o" => 1 , "k" => 0 , "n" => 0 , "m" => 1 } );
+
+	return;
+} # end of cmd_save_member_contents_with_overwrite_basename
 
 ######################################################################
 #
@@ -1983,7 +2104,7 @@ sub process_command
 	@fields = split(/\s+/,$buffer);
 	$command = shift @fields;
 	$buffer = $';
-	if ( $command =~ m/^q$|^exit$|^bye$/i ) {
+	if ( $command =~ m/^q$|^exit$|^bye$|^quit$/i ) {
 		$exit_flag = 1;
 		return;
 	} # IF
@@ -2088,13 +2209,17 @@ MAIN:
 {
 	my ( $status , @blocks , @text , $buffer );
 
-	$status = getopts("hdp:c:",\%options);
+	$status = getopts("hdp:c:C",\%options);
 	if ( $options{"h"} ) {
 		display_pod_help($0);
 		exit 0;
 	} # IF
+	if ( $options{"C"} ) {
+		cmd_summary();
+		exit 0;
+	} # IF
 	unless ( $status  && 0 < @ARGV ) {
-		die("Usage : $0 [-dh] [-c initial_command] [-p pager] filename [... filename]\n");
+		die("Usage : $0 [-dhC] [-c initial_command] [-p pager] filename [... filename]\n");
 	} # UNLESS
 	if ( exists $options{'p'} ) {
 		$pager = $options{'p'};
@@ -2126,7 +2251,7 @@ mytar.pl
 
 =head1 SYNOPSIS
 
-mytar.pl [-hd] tarfile
+mytar.pl [-hdC] tarfile
 
 =head1 DESCRIPTION
 
@@ -2138,6 +2263,7 @@ Process TAR files.
   -h - produce this summary
   -p <pager> - name of "paging" program for displaying output
   -c initial_command - execute the specified command on the tarfile
+  -C - display commands summary
 
 =head1 PARAMETERS
 
