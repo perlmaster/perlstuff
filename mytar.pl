@@ -30,6 +30,7 @@ require "format_mode.pl";
 require "expand_tabs.pl";
 require "list_file_info.pl";
 require "display_pod_help.pl";
+require "list_columns_style.pl";
 
 my ( %members_info , @members_names , $num_members , $exit_flag );
 my %options = ( "d" => 0 , "h" => 0 , "C" => 0 );
@@ -52,15 +53,27 @@ my %cmds = (
 	"S" => [ \&cmd_save_member_contents_with_overwrite , 'save member contents to disk (with overwrite)' ],
 	"B" => [ \&cmd_save_member_contents_with_overwrite_basename , 'save member contents to disk by basename (with overwrite)' ],
 	"m" => [ \&cmd_list_member_names , 'list all member names' ],
+	"C" => [ \&cmd_list_member_names_compact , 'list all member names using a compact column style' ],
 	"M" => [ \&cmd_list_member_names_with_attributes , 'list all member names with attributes' ],
 	"t" => [ \&cmd_list_member_names_with_attributes_time_sorted , 'list member names with attributes sorted by time' ],
 	"T" => [ \&cmd_list_member_names_with_attributes_time_sorted_desc , 'list member names with attributes sorted by time in descending order' ],
 	"h" => [ \&cmd_summary , 'brief commnds summary' ],
+	"?" => [ \&cmd_info , 'general information' ],
 	"H" => [ \&cmd_help , 'detailed command help' ],
 	"P" => [ \&cmd_set_pager , 'activate/deactivate paging' ],
 	"x" => [ \&cmd_not_found , 'list names of members that do not include a pattern' ],
 	"W" => [ \&cmd_notopics , 'list commands without detailed help' ],
 );
+
+my $general_help_info =<<GENERAL;
+The 'h' command will display a summary of available commands.
+
+The 'H' command will display detailed info for the specified command.
+
+When specifying a member name you can enter a '{' immediately followed by an integer.
+This represents an "index" into the list of member names from the most recent command
+that matched member names.
+GENERAL
 
 my $helpsep = "=====";
 my %helptext;
@@ -281,47 +294,6 @@ sub process_tar_file_member
 
 	return 0;
 } # end of process_tar_file_member
-
-######################################################################
-#
-# Function  : open_tempfile
-#
-# Purpose   : Open a temporary file
-#
-# Inputs    : $_[0] - reference to buffer to receive tempfile name
-#
-# Output    : appropriate diagnostics
-#
-# Returns   : IF error THEN negative ELSE zero
-#
-# Example   : $status = open_tempfile(\$tempfile);
-#
-# Notes     : (none)
-#
-######################################################################
-
-sub open_tempfile
-{
-	my ( $ref_tempfile ) = @_;
-	my ( $tempfile );
-
-	$$ref_tempfile = "";
-	if ( $^O =~ m/MSWin/ ) {
-		$tempfile = $ENV{"TEMP"} . "\\" . "mytar-$$";
-	} # IF
-	else {
-		$tempfile = "/var/tmp/" . $ENV{"LOGNAME"} . "-mytar-$$";
-	} # ELSE
-	unless ( open(TEMP,">$tempfile") ) {
-		print "\nopen failed for file '$tempfile' : $!\n";
-		return -1;
-	} # UNLESS
-	else {
-		$$ref_tempfile = $tempfile;
-		return 0;
-	} # ELSE
-
-} # end of open_tempfile
 
 ######################################################################
 #
@@ -569,7 +541,7 @@ sub cmd_not_found
 #
 # Function  : cmd_list_member_names
 #
-# Purpose   : Process a TAR file.
+# Purpose   : List member names
 #
 # Inputs    : $_[0] - name of  tar file
 #             $_[1] - ref to array of parameters
@@ -617,6 +589,59 @@ sub cmd_list_member_names
 
 	return;
 } # end of cmd_list_member_names
+
+######################################################################
+#
+# Function  : cmd_list_member_names_compact
+#
+# Purpose   : List member names in a compact column style
+#
+# Inputs    : $_[0] - name of  tar file
+#             $_[1] - ref to array of parameters
+#
+# Output    : List of TAR file members
+#
+# Returns   : nothing
+#
+# Example   : cmd_list_member_names_compact($tarfile,\@parms);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub cmd_list_member_names_compact
+{
+	my ( $tarfile , $ref_parms ) = @_;
+	my ( @numbers , @parms , $name_pattern , $count );
+	my ( $num_parms );
+
+	@parms = @$ref_parms;
+	$num_parms = scalar @parms;
+	if ( $num_parms > 0 ) {
+		$name_pattern = shift @parms;
+		@matched_names = grep /${name_pattern}/i,@members_names;
+		$count = scalar @matched_names;
+		if ( $count == 0 ) {
+			print "No member names were matched by '$name_pattern'\n";
+			return;
+		} # IF
+	} # IF
+	else {
+		@matched_names = @members_names;
+		$count = scalar @matched_names;
+	} # ELSE
+
+	@numbers = ( map { sprintf "%4d",$_} (1 .. $count) );
+	unless ( open(PIPE,"|$pager") ) {
+		warn("open of pipe to '$pager' failed : $!\n");
+		return;
+	} # UNLESS
+
+	list_columns_style(\@matched_names,100,"Member Names",\*PIPE);
+	close PIPE;
+
+	return;
+} # end of cmd_list_member_names_compact
 
 ######################################################################
 #
@@ -684,7 +709,7 @@ sub list_members
 #
 # Function  : cmd_list_member_names_with_attributes_time_sorted_desc
 #
-# Purpose   : Process a TAR file.
+# Purpose   : List member names and attributes sorted by time in descending order
 #
 # Inputs    : $_[0] - name of  tar file
 #             $_[1] - reference to array of parameters
@@ -728,7 +753,7 @@ sub cmd_list_member_names_with_attributes_time_sorted_desc
 #
 # Function  : cmd_list_member_names_with_attributes_time_sorted
 #
-# Purpose   : Process a TAR file.
+# Purpose   : List member names and attributes sorted by time in ascending order
 #
 # Inputs    : $_[0] - name of  tar file
 #             $_[1] - reference to array of parameters
@@ -772,7 +797,7 @@ sub cmd_list_member_names_with_attributes_time_sorted
 #
 # Function  : cmd_list_member_names_with_attributes
 #
-# Purpose   : Process a TAR file.
+# Purpose   : List member names and attributes sorted by name
 #
 # Inputs    : $_[0] - name of  tar file
 #             $_[1] - ref to array of parameters
@@ -886,7 +911,7 @@ sub cmd_list_member_attributes
 #
 # Function  : cmd_summary
 #
-# Purpose   : Process a TAR file.
+# Purpose   : Display a summary of available commands
 #
 # Inputs    : $_[0] - name of tar file
 #
@@ -913,6 +938,34 @@ sub cmd_summary
 
 	return;
 } # end of cmd_summary
+
+######################################################################
+#
+# Function  : cmd_info
+#
+# Purpose   : Display general info
+#
+# Inputs    : $_[0] - name of tar file
+#             $_[1] - ref to array of parameters
+#
+# Output    : List of TAR file members
+#
+# Returns   : nothing
+#
+# Example   : cmd_info($tarfile,\@parms);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub cmd_info
+{
+	my ( $tarfile , $ref_parms ) = @_;
+
+	print "$general_help_info\n";
+
+	return;
+} # end of cmd_info
 
 ######################################################################
 #
@@ -2236,7 +2289,7 @@ MAIN:
 	} # FOREACH
 
 	print "\n";
-	cmd_summary();
+	cmd_info();
 
 	foreach my $tarfile ( @ARGV ) {
 		process_tar_file($tarfile);
