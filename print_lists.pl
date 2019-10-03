@@ -789,4 +789,74 @@ sub print_lists_multiple_header_lines
 	return;
 } # end of print_lists_multiple_header_lines
 
+######################################################################
+#
+# Function  : build_lists_with_trim
+#
+# Purpose   : Build a report using the contents of a set of parallel arrays.
+#             (i.e. each array represents a column)
+#
+# Inputs    : $_[0] - reference to array containing references to arrays
+#                     of columns to be displayed
+#             $_[1] - reference to an array of column headers
+#             $_[2] - column header underline character
+#
+# Output    : (none)
+#
+# Returns   : the report
+#
+# Example   : $report = build_lists_with_trim(\@arrays,\@headers,"=");
+#
+# Notes     : The last column is not padded with blanks
+#
+######################################################################
+
+sub build_lists_with_trim
+{
+	my ( $ref_arrays , $ref_headers , $underline ) = @_;
+	my ( $column_ref , $num_rows , $num_columns , $rownum , $colnum , @maxlen );
+	my ( $value , $length , @underlines , $report );
+
+	$report = "";
+	$num_columns = scalar @$ref_headers;
+	@maxlen = map { length $_ } @$ref_headers;
+	$column_ref = $$ref_arrays[0];
+	$num_rows = scalar @$column_ref;
+	for ( $rownum = 0 ; $rownum < $num_rows ; ++$rownum ) {
+		for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+			$column_ref = $$ref_arrays[$colnum];
+			$value = $$column_ref[$rownum];
+			$length = length $value;
+			if ( $length > $maxlen[$colnum] ) {
+				$maxlen[$colnum] = $length;
+			} # IF
+		} # FOR
+	} # FOR
+
+	@underlines = map { $underline x $_ } @maxlen;
+	for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+		$report .= sprintf "%-${maxlen[$colnum]}s ",$$ref_headers[$colnum];
+	} # FOR
+	$report.= "\n";
+	for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+		$report .= sprintf"%-${maxlen[$colnum]}s ",$underlines[$colnum];
+	} # FOR
+	$report .= "\n";
+	for ( $rownum = 0 ; $rownum < $num_rows ; ++$rownum ) {
+		for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+			$column_ref = $$ref_arrays[$colnum];
+			$value = $$column_ref[$rownum];
+			if ( $colnum+1 == $num_columns ) {
+				$report .= "$value";
+			} # IF
+			else {
+				$report .= sprintf "%-${maxlen[$colnum]}s ",$value;
+			} # ELSE
+		} # FOR
+		$report .= "\n";
+	} # FOR
+
+	return $report;
+} # end of build_lists_with_trim
+
 1;
