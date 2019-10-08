@@ -46,7 +46,7 @@ my $num_missing = 0;
 #
 # Returns   : 0 --> success , non-zero --> failure
 #
-# Example   : missing.pl -d dir1 dir2
+# Example   : dir-missing.pl -d dir1 dir2
 #
 # Notes     : (none)
 #
