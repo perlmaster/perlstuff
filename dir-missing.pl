@@ -2,7 +2,7 @@
 
 ######################################################################
 #
-# File      : missing.pl
+# File      : dir-missing.pl
 #
 # Author    : Barry Kimelman
 #
@@ -25,8 +25,12 @@ use File::Spec;
 
 require "get_dir_entries.pl";
 require "list_file_info.pl";
+require "display_pod_help.pl";
+require "list_columns_style.pl";
 
-my %options = ( "d" => 0 , "l" => 0 , "h" => 0 , "r" => 0 , "g" => 1 , "o" => 1 , "k" => 0 );
+my %options = (
+	"d" => 0 , "l" => 0 , "h" => 0 , "r" => 0 , "g" => 1 , "o" => 1 , "k" => 0 , "c" => 0
+);
 my $num_missing = 0;
 
 ######################################################################
@@ -53,28 +57,25 @@ MAIN:
 	my ( $dirname1 , $dirname , $status , %files1 , %files2 , $count1 , @missing );
 	my ( $path , $dirs , @entries , $errmsg );
 
-	$status = getopts("dlhre:",\%options);
+	$status = getopts("dlhre:c",\%options);
 
 	if ( $options{"h"} ) {
-		if ( $^O =~ m/MSWin/ ) {
-# Windows stuff goes here
-			system("pod2text $0 | more");
-		} # IF
-		else {
-# Non-Windows stuff (i.e. UNIX) goes here
-			system("pod2man $0 | nroff -man | less -M");
-		} # ELSE
+		display_pod_help($0);
 		exit 0;
 	} # IF
-	unless ( $status  && 1 < @ARGV ) {
-		die("Usage : $0 [-dlhr] [-e exclude_pattern_list] dirname1 dirname2 [... dirname_n]\n");
+	unless ( $status  && 1 < scalar @ARGV ) {
+		die("Usage : $0 [-dlhrc] [-e exclude_pattern_list] dirname1 dirname2 [... dirname_n]\n");
 	} # UNLESS
+	if ( $options{'l'} && $options{'c'} ) {
+		die("Options 'l' and 'c' are mutually exclusive\n");
+	} # IF
 	$dirname1 = shift @ARGV;
 	%files1 = ();
-	$count1 = get_dir_entries($dirname,{ 'dot' => 0 , 'qual' => 0 , 'sort' => 0 },\@entries,\$errmsg);
-	if ( $count1 <  ) {
+	$count1 = get_dir_entries($dirname1,{ 'dot' => 0 , 'qual' => 0 , 'sort' => 0 },\@entries,\$errmsg);
+	if ( $count1 < 0 ) {
 		die("$errmsg\n");
 	} # IF
+	@entries = map { lc $_ } @entries;
 	%files1 = map { $_ , 0 } @entries;
 	print "\nFound ${count1} files under $dirname1\n";
 	if ( exists $options{'e'} ) {
@@ -93,9 +94,10 @@ MAIN:
 	$dirs = join(' , ',@ARGV);
 	foreach my $dirname ( @ARGV ) {
 		$status = get_dir_entries($dirname,{ 'dot' => 0 , 'qual' => 0 , 'sort' => 0 },\@entries,\$errmsg);
-		if ( $status <  ) {
+		if ( $status < 0 ) {
 			die("$errmsg\n");
 		} # IF
+		@entries = map { lc $_ } @entries;
 		foreach my $entry ( @entries ) {
 			$files2{$entry} = 0;
 		} # FOREACH
@@ -109,15 +111,16 @@ MAIN:
 		} # UNLESS
 	} # FOREACH
 	if ( $num_missing > 0 ) {
-		print "\n$num_missing file(s) under \"$dirname1\" are missing from under $dirs\n";
+		print "\n$num_missing file(s) under \"$dirname1\" are missing from under $dirs\n\n";
 		@missing = sort { lc $a cmp lc $b } @missing;
 		if ( $options{'l'} ) {
 			foreach my $entry ( @missing ) {
 				$path = File::Spec->catfile($dirname1,$entry);
 				list_file_info_full($path,\%options);
 			} # FOREACH
-		} # IF
-		else {
+		} elsif ( $options{'c'} ) {
+			list_columns_style(\@missing,100,undef,\*STDOUT);
+		} else {
 			print join("\n",@missing),"\n";
 		} # ELSE
 		print "\n$num_missing file(s) under \"$dirname1\" are missing from under $dirs\n";
@@ -132,7 +135,7 @@ dir-missing.pl - Look for files from one directory missing from a 2nd directory
 
 =head1 SYNOPSIS
 
-dir-missing.pl [-dhlr] dirname1 dirname2
+dir-missing.pl [-dhlrc] dirname1 dirname2
 
 =head1 DESCRIPTION
 
@@ -144,6 +147,7 @@ Look for files from one directory missing from a 2nd directory.
   -h - produce this summary
   -l - use "ls" command to show missing files files
   -r - recursively process sub-directories
+  -c - display list of missing files in a compact style
 
 =head1 PARAMETERS
 
