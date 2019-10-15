@@ -8,7 +8,7 @@
 #
 # Created   : December 2, 2011
 #
-# Purpose   : Run "ls -ld" for matched files.
+# Purpose   : Display file information (ala "ls -ld") for files matched by a regular expression
 #
 # Notes     : (none)
 #
@@ -38,20 +38,6 @@ my %matched_files = ();
 my @patterns;
 my $maxlen;
 my ( $CONSOLE , @console_info , %console_info );
-
-my ( $dirsep );
-
-BEGIN
-{
-	my ( @parts );
-
-	if ( $^O =~ m/MSWin/ ) {
-		$dirsep = "\\";
-	} # IF
-	else {
-		$dirsep = "/";
-	} # ELSE
-}
 
 ######################################################################
 #
@@ -171,7 +157,7 @@ sub get_file_mtime
 sub process_dir
 {
 	my ( $dirname ) = @_;
-	my ( %entries , $dir_prefix , @all_matches , $style , $command , @paths , @matched );
+	my ( %entries , @all_matches , $style , $command , @paths , @matched );
 	my ( @files , @mtimes , @indices , $path , @subdirs );
 
 	unless ( opendir(DIR,$dirname) ) {
@@ -183,7 +169,6 @@ sub process_dir
 	closedir DIR;
 	delete $entries{".."};
 	delete $entries{"."};
-	$dir_prefix = ($dirname eq ".") ? "" : "${dirname}${dirsep}";
 
 	@all_matches = ();
 	foreach my $pattern ( @patterns ) {
@@ -205,13 +190,13 @@ sub process_dir
 
 	@subdirs = ();
 	foreach my $file ( keys %entries ) {
-		$path = "${dir_prefix}${file}";
+		$path = File::Spec->catfile($dirname,$file);
 		if ( -d $path ) {
 			push @subdirs,$path;
 		} # IF
 	} # FOREACH
 	foreach my $file ( @all_matches ) {
-		$path = "${dir_prefix}${file}";
+		$path = File::Spec->catfile($dirname,$file);
 		$matched_files{$path} = $entries{$file};
 	} # FOREACH
 
@@ -232,7 +217,7 @@ sub process_dir
 #
 # Function  : MAIN
 #
-# Purpose   : Run "ls -ld" for matched files.
+# Purpose   : Display file information (ala "ls -ld") for files matched by a regular expression
 #
 # Inputs    : @ARGV - optional arguments
 #
@@ -341,11 +326,11 @@ files.pl
 
 =head1 SYNOPSIS
 
-files.pl [-dhtTfkogw] [-D dirname] pattern
+files.pl [-dhtTfkogw] [-e pattern] [-c dirname] [-D dirname] pattern
 
 =head1 DESCRIPTION
 
-Run "ls -ld" for matched files.
+Display file information (ala "ls -ld") for files matched by a regular expression
 
 =head1 OPTIONS
 
@@ -371,7 +356,7 @@ Run "ls -ld" for matched files.
 
 =head1 EXAMPLES
 
-files.pl xxx
+files.pl '[a-z][0-9]'
 
 =head1 EXIT STATUS
 
