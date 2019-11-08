@@ -41,6 +41,6 @@ show-tables.pl - show a list of tables under a MySQL database
 big.pl - list info for the largest files under a directory tree
 and.pl - search for files that contain all of the specified patterns
 zipgrep.pl - search ZIP file members for a pattern
-
+newest.pl - determine the most recently modified file in the current directory and copy its name to the clipboard
 
 the other files in this repository are files that are "required" by the above named scripts
