@@ -35,7 +35,7 @@ use lib $FindBin::Bin;
 #
 # Example   : list_columns_style(\@list,80,$title,\*STDOUT);
 #
-# Notes     : (none)
+# Notes     : The array is alphabetically sorted
 #
 ######################################################################
 
@@ -64,5 +64,52 @@ sub list_columns_style
 	} # IF
 	return;
 } # end of list_columns_style
+
+######################################################################
+#
+# Function  : list_columns_style_unsorted
+#
+# Purpose   : List an array of strings in columns style
+#
+# Inputs    : $_[0] - reference to array of strings
+#             $_[1] - maximum output line width
+#             $_[2] - optional title
+#             $_[3] - file handle
+#
+# Output    : Listing of strings
+#
+# Returns   : nothing
+#
+# Example   : list_columns_style_unsorted(\@list,80,$title,\*STDOUT);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub list_columns_style_unsorted
+{
+	my ( $ref_strings , $max_width , $title , $handle ) = @_;
+	my ( $entry , $count , $maxlen , $line_size );
+
+	$count = scalar @$ref_strings;
+	if ( $count > 0 ) {
+		$maxlen = (sort { $b <=> $a } map { length $_ } @$ref_strings)[0];
+		if ( defined $title ) {
+			print $handle "\n$title\n";
+		} # IF
+		$line_size = 0;
+		$maxlen += 1;
+		foreach $entry ( @$ref_strings ) {
+			$line_size += $maxlen;
+			if ( $line_size >= $max_width ) {
+				print $handle "\n";
+				$line_size = $maxlen;
+			} # IF
+			printf $handle "%-${maxlen}.${maxlen}s",$entry;
+		} # FOREACH
+		print $handle "\n";
+	} # IF
+	return;
+} # end of list_columns_style_unsorted
 
 1;
