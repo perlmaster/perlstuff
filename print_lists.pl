@@ -257,7 +257,7 @@ sub print_list_of_rows
 {
 	my ( $ref_rows , $ref_headers , $underline , $trunc_size , $handle ) = @_;
 	my ( $row_ref , $num_rows , $num_columns , $rownum , $colnum , @maxlen );
-	my ( $value , $length , @underlines );
+	my ( $value , $length , @underlines , $last_col );
 
 	unless ( defined $handle ) {
 		$handle = \*STDOUT;
@@ -292,6 +292,7 @@ sub print_list_of_rows
 		printf $handle "%-${maxlen[$colnum]}.${maxlen[$colnum]}s ",$underlines[$colnum];
 	} # FOR
 	print $handle "\n";
+	$last_col = $num_columns - 1;
 	for ( $rownum = 0 ; $rownum < $num_rows ; ++$rownum ) {
 		$row_ref = $$ref_rows[$rownum];
 		for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
@@ -304,7 +305,12 @@ sub print_list_of_rows
 				$length = $trunc_size;
 				$value = substr ($value,0,$trunc_size);
 			} # IF
-			printf $handle "%-${maxlen[$colnum]}.${maxlen[$colnum]}s ",$value;
+			if ( $colnum == $last_col ) {
+				print "$value";
+			} # IF
+			else {
+				printf $handle "%-${maxlen[$colnum]}.${maxlen[$colnum]}s ",$value;
+			} # ELSE
 		} # FOR
 		print $handle "\n";
 	} # FOR
