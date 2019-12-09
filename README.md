@@ -44,5 +44,6 @@ and.pl - search for files that contain all of the specified patterns
 zipgrep.pl - search ZIP file members for a pattern
 newest.pl - determine the most recently modified file in the current directory and copy its name to the clipboard
 col-summary.pl - produce a counts summary of a column from a CSV file
+choosedir.pl - choose a sub-directory from the current directory and copy the chgosen name to the clipboard
 
 the other files in this repository are files that are "required" by the above named scripts
