@@ -60,10 +60,13 @@ sub scan_tree
 	delete $entries{"."};
 	@paths = map { File::Spec->catfile($dirname,$_) } sort { lc $a cmp lc $b } keys %entries;
 	@list = grep { -d $_ } @paths;
+	@list = grep !/\.git$/i,@list;
 	push @subdirs,@list;
 	if ( $options{'r'} && 0 < scalar @list ) {
 		foreach my $subdir ( @list ) {
-			scan_tree($subdir);
+			unless ( $subdir =~ m/\.git$/i ) {
+				scan_tree($subdir);
+			} # UNLESS
 		} # FOREACH
 	} # IF
 
@@ -101,6 +104,7 @@ MAIN:
 	unless ( $status ) {
 		die("Usage : $0 [-dhr]\n");
 	} # UNLESS
+	print "\nChoose one of the following sub-directories.\n\n";
 	scan_tree(".");
 
 	$count = scalar @subdirs;
@@ -110,7 +114,7 @@ MAIN:
 	@numbers = (1 .. $count);
 	print join("\n",map { "$numbers[$_] $subdirs[$_]" } (0 .. $#subdirs)),"\n";
 	while ( 1 ) {
-		print "\nEnter your choice [1 - $count] :";
+		print "\nEnter your choice [1 - $count] : ";
 		$buffer = <STDIN>;
 		chomp $buffer;
 		unless ( $buffer =~ m/^\d+$/ ) {
