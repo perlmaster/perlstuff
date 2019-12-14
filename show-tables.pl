@@ -24,8 +24,9 @@ use Data::Dumper;
 require "mysql_utils.pl";
 require "print_lists.pl";
 require "display_pod_help.pl";
+require "list_columns_style.pl";
 
-my %options = ( "d" => 0 , "h" => 0 , "t" => 0 , "D" => 0 , "p" => "." );
+my %options = ( "d" => 0 , "h" => 0 , "t" => 0 , "D" => 0 , "p" => "." , "c" => 0 );
 
 ######################################################################
 #
@@ -107,14 +108,14 @@ MAIN:
 	my ( $ref_names , @colnames , $ref_all , @row , $errmsg , %attr );
 	my ( $index , @index , @table , @type );
 
-	$status = getopts("dhtDp:",\%options);
+	$status = getopts("dhtDp:c",\%options);
 	if ( $options{"h"} ) {
 		display_pod_help($0);
 		exit 0;
 	} # IF
 
 	unless ( $status && 0 < @ARGV ) {
-		die("Usage : $0 [-dhtD] [-p pattern] schema\n");
+		die("Usage : $0 [-dhtDc] [-p pattern] schema\n");
 	} # UNLESS
 	$status = localtime;
 	print "$status\n\n";
@@ -161,7 +162,17 @@ QUERY
 			push @type,$row[1];
 		} # IF
 	} # FOREACH
-	print_lists( [ \@index , \@table , \@type ] , [ "#" , "Table" , "Type" ] , "=" );
+	if ( $options{'c'} ) {
+		list_columns_style(\@table,100,"${index} tables under $ARGV[0]\n",\*STDOUT);
+	} # IF
+	else {
+		if ( $options{'t'} ) {
+			print join("\n",@table),"\n";
+		} # IF
+		else {
+			print_lists( [ \@index , \@table , \@type ] , [ "#" , "Table" , "Type" ] , "=" );
+		} # ELSE
+	} # ELSE
 
 	if ( $options{"D"} ) {
 		foreach my $row ( @$ref_all ) {
@@ -183,7 +194,7 @@ show-tables.pl - List all the tables in a schema
 
 =head1 SYNOPSIS
 
-show-tables.pl [-dhtD] [-p pattern] schema
+show-tables.pl [-dhtDc] [-p pattern] schema
 
 =head1 DESCRIPTION
 
@@ -194,6 +205,7 @@ List all the tables in a schema
   -d - activate debug mode
   -h - produce this summary
   -t - only list table names
+  -c - list table names in a comnpact columns style
   -D - describe the listed tables
   -p pattern - only show tables whose name matches this pattern
 
