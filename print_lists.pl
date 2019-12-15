@@ -306,7 +306,7 @@ sub print_list_of_rows
 				$value = substr ($value,0,$trunc_size);
 			} # IF
 			if ( $colnum == $last_col ) {
-				print "$value";
+				print $handle "$value";
 			} # IF
 			else {
 				printf $handle "%-${maxlen[$colnum]}.${maxlen[$colnum]}s ",$value;
