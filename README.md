@@ -47,5 +47,6 @@ col-summary.pl - produce a counts summary of a column from a CSV file
 choosedir.pl - choose a sub-directory from the current directory and copy the chgosen name to the clipboard
 freespace.pl - display detailed info about the drives on your windows system
 styles.pl - find the styling rules in a CSS file
+choosefile.pl - choose a file from the directory based on a filename pattern
 
 the other files in this repository are files that are "required" by the above named scripts
