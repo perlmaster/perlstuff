@@ -48,5 +48,7 @@ choosedir.pl - choose a sub-directory from the current directory and copy the ch
 freespace.pl - display detailed info about the drives on your windows system
 styles.pl - find the styling rules in a CSS file
 choosefile.pl - choose a file from the directory based on a filename pattern
+factorial.pl - calculate factorial values
+fibonacci.pl - calculate fibonacci numbers
 
 the other files in this repository are files that are "required" by the above named scripts
