@@ -50,5 +50,7 @@ styles.pl - find the styling rules in a CSS file
 choosefile.pl - choose a file from the directory based on a filename pattern
 factorial.pl - calculate factorial values
 fibonacci.pl - calculate fibonacci numbers
+clonetree.pl - clone the structure of a directory tree
+textfiles.pl - look for ASCII text files in a directory tree
 
 the other files in this repository are files that are "required" by the above named scripts
