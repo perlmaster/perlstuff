@@ -52,5 +52,6 @@ factorial.pl - calculate factorial values
 fibonacci.pl - calculate fibonacci numbers
 clonetree.pl - clone the structure of a directory tree
 textfiles.pl - look for ASCII text files in a directory tree
+decrypt.pl - command line tool to display the contents of a mysql table with an AES encrypted column
 
 the other files in this repository are files that are "required" by the above named scripts
