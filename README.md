@@ -53,5 +53,6 @@ fibonacci.pl - calculate fibonacci numbers
 clonetree.pl - clone the structure of a directory tree
 textfiles.pl - look for ASCII text files in a directory tree
 decrypt.pl - command line tool to display the contents of a mysql table with an AES encrypted column
+hgrep.pl - search files for patterns with colored highlighting for matches
 
 the other files in this repository are files that are "required" by the above named scripts
