@@ -56,5 +56,6 @@ decrypt.pl - command line tool to display the contents of a mysql table with an 
 hgrep.pl - search files for patterns with colored highlighting for matches
 start_threads.pl - a module to start threads
 threads-test-1.pl - a test of threads handling
+greptext.pl - recursively search only text files
 
 the other files in this repository are files that are "required" by the above named scripts
