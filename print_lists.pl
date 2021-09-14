@@ -37,7 +37,7 @@ use lib $FindBin::Bin;
 #
 # Returns   : (nothing)
 #
-# Example   : print_lists(\@arrays,\@headers,"=",\*STDOUT);
+# Example   : print_lists( [ \@list1 , \@list2 ] , [ "Header 1" , "Header 2" ] , "=" , \*STDOUT );
 #
 # Notes     : (none)
 #
@@ -104,7 +104,7 @@ sub print_lists
 #
 # Returns   : (nothing)
 #
-# Example   : print_lists_with_trim(\@arrays,\@headers,"=",\*STDOUT);
+# Example   : print_lists_with_trim( [ \@list1 , \@list2 ] , [ "Header 1" , "Header 2" ] , "=" , \*STDOUT );
 #
 # Notes     : The last column is not padded with blanks
 #
@@ -158,6 +158,93 @@ sub print_lists_with_trim
 
 	return;
 } # end of print_lists_with_trim
+
+######################################################################
+#
+# Function  : print_lists_with_trim_and_flags
+#
+# Purpose   : Print the contents of a set of parallel arrays.
+#             (i.e. each array represents a column)
+#
+# Inputs    : $_[0] - reference to array containing references to arrays
+#                     of columns to be displayed
+#             $_[1] - reference to an array of column headers
+#             $_[2] - column header underline character
+#             $_[3] - optional handle of open file
+#             $_[4] - optional hash of flags
+#                     "header" - header to preceed lists
+#                     "trailer" - trailer to follow lists
+#
+# Output    : The array contents
+#
+# Returns   : (nothing)
+#
+# Example   : print_lists_with_trim_and_flags( [ \@list1 , \@list2 ] , [ "Header 1" , "Header 2" ] , "=" , \*STDOUT );
+#
+# Notes     : The last column is not padded with blanks
+#
+######################################################################
+
+sub print_lists_with_trim_and_flags
+{
+	my ( $ref_arrays , $ref_headers , $underline , $handle , $ref_flags ) = @_;
+	my ( $column_ref , $num_rows , $num_columns , $rownum , $colnum , @maxlen );
+	my ( $value , $length , @underlines );
+
+	if ( defined $ref_flags ) {
+		if ( exists $ref_flags->{'header'} ) {
+			print "$ref_flags->{'header'}\n";
+		} # IF
+	} # IF
+
+	unless ( defined $handle ) {
+		$handle = \*STDOUT;
+	} # UNLESS
+	$num_columns = scalar @$ref_headers;
+	@maxlen = map { length $_ } @$ref_headers;
+	$column_ref = $$ref_arrays[0];
+	$num_rows = scalar @$column_ref;
+	for ( $rownum = 0 ; $rownum < $num_rows ; ++$rownum ) {
+		for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+			$column_ref = $$ref_arrays[$colnum];
+			$value = $$column_ref[$rownum];
+			$length = length $value;
+			if ( $length > $maxlen[$colnum] ) {
+				$maxlen[$colnum] = $length;
+			} # IF
+		} # FOR
+	} # FOR
+	@underlines = map { $underline x $_ } @maxlen;
+	for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+		printf $handle "%-${maxlen[$colnum]}s ",$$ref_headers[$colnum];
+	} # FOR
+	print $handle "\n";
+	for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+		printf $handle "%-${maxlen[$colnum]}s ",$underlines[$colnum];
+	} # FOR
+	print $handle "\n";
+	for ( $rownum = 0 ; $rownum < $num_rows ; ++$rownum ) {
+		for ( $colnum = 0 ; $colnum < $num_columns ; ++$colnum ) {
+			$column_ref = $$ref_arrays[$colnum];
+			$value = $$column_ref[$rownum];
+			if ( $colnum+1 == $num_columns ) {
+				print $handle "$value";
+			} # IF
+			else {
+				printf $handle "%-${maxlen[$colnum]}s ",$value;
+			} # ELSE
+		} # FOR
+		print $handle "\n";
+	} # FOR
+
+	if ( defined $ref_flags ) {
+		if ( exists $ref_flags->{'trailer'} ) {
+			print "$ref_flags->{'trailer'}\n";
+		} # IF
+	} # IF
+
+	return;
+} # end of print_lists_with_trim_and_flags
 
 ######################################################################
 #
