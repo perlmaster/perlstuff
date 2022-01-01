@@ -86,6 +86,7 @@ use constant OPT_NOTGREP => 43;
 use constant OPT_NEWLINE => 44;
 use constant OPT_LISTDIR => 45;
 use constant OPT_HLINE => 46;
+use constant OPT_IMAGE => 47;
 
 use constant OPT_DATA_NONE => 0;
 use constant OPT_DATA_STRING => 1;
@@ -164,8 +165,9 @@ my %options = (
 	"hex" => [ "b" , OPT_HEXDUMP , undef , \&validate_boolean , \&run_hex , "Do a hex/char dump of a file" ] ,
 	"empty" => [ "b" , OPT_EMPTY , undef , \&validate_boolean , \&run_empty , "Test to see if a file is empty" ] ,
 	"text" => [ "b" , OPT_TEXT , undef , \&validate_boolean , \&run_text , "Test to see if a file is a text file" ] ,
+	"image" => [ "b" , OPT_IMAGE , undef , \&validate_boolean , \&run_image , "Test to see if a file is an image file" ] ,
 	"mingb" => [ "i" , OPT_MINGB , undef , \&validate_number , \&run_mingb , "Check file for minimum size in terms of GB" ] ,
-	"and" => [ "s" , OPT_AND , undef , \&validate_string , \&run_and , "Check to see if a file contains all of the double-colon-separated patterns" ] ,
+	"and" => [ "s" , OPT_AND , undef , \&validate_string , \&run_and , "Check to see if a file contains all of the double-colon-separated patterns (case insensitive)" ] ,
 	"listdir" => [ "b" , OPT_LISTDIR , undef , \&validate_boolean , \&run_listdir , "Display directory contents" ] ,
 	"hline" => [ "i" , OPT_HLINE , undef , \&validate_number , \&run_hline , "Display a horizontal line" ] ,
 ) ;
@@ -175,6 +177,7 @@ my $num_names_matched = 0;
 my ( $bold , $normal );
 my $bold_color = 'white';
 my $options_text;
+my %img_extensions = ( "gif" => 0 , "jpg" => 0 , "jpeg" => 0 , "png" => 0 , "bmp" => 0 );
 
 ######################################################################
 #
@@ -1864,6 +1867,39 @@ sub run_text
 	
 	return $status;
 } # end of run_text
+
+######################################################################
+#
+# Function  : run_image
+#
+# Purpose   : Execute a "-image" option.
+#
+# Inputs    : (none)
+#
+# Output    : (none)
+#
+# Returns   : If file is an image file Then 1 Else 0
+#
+# Example   : $status = run_image();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_image
+{
+	my ( $status , @parts );
+
+	$status = 0;
+	if ( $entry_name =~ m/\./ ) {
+		@parts = split(/\./,$entry_name);
+		if ( exists $img_extensions{$parts[$#parts]} ) {
+			$status = 1;
+		} # IF
+	} # IF
+	
+	return $status;
+} # end of run_image
 
 ######################################################################
 #
