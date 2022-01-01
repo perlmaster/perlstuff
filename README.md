@@ -57,5 +57,8 @@ hgrep.pl - search files for patterns with colored highlighting for matches
 start_threads.pl - a module to start threads
 threads-test-1.pl - a test of threads handling
 greptext.pl - recursively search only text files
+tcpdata.pm - a module defining data items used by both a client and server tcp scripts
+tcp-server.pl - tcp server script
+tcp-client-2.pl - tcp client script
 
 the other files in this repository are files that are "required" by the above named scripts
