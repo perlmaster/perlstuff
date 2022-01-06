@@ -25,6 +25,7 @@ use lib $FindBin::Bin;
 #
 # Inputs    : $_[0] - buffer to be dumped
 #             $_[1] - starting offset
+#             $_[2] - optional flag , if specified and ne 0 then add decimal offset to the dumped lines
 #
 # Output    : (none)
 #
@@ -38,7 +39,7 @@ use lib $FindBin::Bin;
 
 sub hexdump
 {
-	my ( $hexdata , $offset ) = @_;
+	my ( $hexdata , $offset , $decimal_flag ) = @_;
 	my ( $hex , $hexbuffer );
 
 	$hexbuffer = "";
@@ -46,8 +47,12 @@ sub hexdump
 		$hex = unpack "H*", $chunk; # hexadecimal magic
 		$chunk =~ tr/ -~/./c;          # replace unprintables
 		$hex   =~ s/(.{1,8})/$1 /gs;   # insert spaces
-		$hexbuffer .= sprintf "0x%08x (%05u)  %-*s %s\n",
-			$offset, $offset, 36, $hex, $chunk;
+		# $hexbuffer .= sprintf "0x%08x   %-*s %s\n",
+		$hexbuffer .= sprintf "0x%08x", $offset;
+		if ( defined $decimal_flag && $decimal_flag ) {
+			$hexbuffer .= sprintf " (%010d)",$offset;
+		} # IF
+		$hexbuffer .= sprintf "   %-*s %s\n",36, $hex, $chunk;
 		$offset += 16;
 	}
 
