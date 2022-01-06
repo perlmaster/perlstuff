@@ -60,5 +60,7 @@ greptext.pl - recursively search only text files
 tcpdata.pm - a module defining data items used by both a client and server tcp scripts
 tcp-server.pl - tcp server script
 tcp-client-2.pl - tcp client script
+hexdump.pl - generate a hex/char dump of a block of data
+hex-dump-file.pl - generate a hex/char dump of a file
 
 the other files in this repository are files that are "required" by the above named scripts
