@@ -87,6 +87,8 @@ use constant OPT_NEWLINE => 44;
 use constant OPT_LISTDIR => 45;
 use constant OPT_HLINE => 46;
 use constant OPT_IMAGE => 47;
+use constant OPT_IP_GREP => 47;
+use constant OPT_NOTMINE => 48;
 
 use constant OPT_DATA_NONE => 0;
 use constant OPT_DATA_STRING => 1;
@@ -106,7 +108,7 @@ struct Find_Option => {
 	function => '$'
 } ;
 
-our ( $entry_name , $entry_path , $entry_lstat , $entry_type );
+our ( $entry_name , $entry_path , $entry_lstat , $entry_type , $entry_uid );
 my ( @find_options , $start_dir , $current_opt , $start_time , $end_time );
 my ( $int_start_time , $int_end_time , $int_elapsed_time );
 
@@ -170,6 +172,8 @@ my %options = (
 	"and" => [ "s" , OPT_AND , undef , \&validate_string , \&run_and , "Check to see if a file contains all of the double-colon-separated patterns (case insensitive)" ] ,
 	"listdir" => [ "b" , OPT_LISTDIR , undef , \&validate_boolean , \&run_listdir , "Display directory contents" ] ,
 	"hline" => [ "i" , OPT_HLINE , undef , \&validate_number , \&run_hline , "Display a horizontal line" ] ,
+	"ipgrep" => [ "b" , OPT_IP_GREP , undef , \&validate_boolean , \&run_ipgrep , "Search file contents for records with an ip address" ] ,
+	"notmine" => [ "b" , OPT_NOTMINE , undef , \&validate_boolean , \&run_notmine , "Check to see if the file is not owned by the effective userid" ] ,
 ) ;
 
 my $num_dirs_processed = 0;
@@ -1350,6 +1354,46 @@ sub run_and
 
 ######################################################################
 #
+# Function  : run_ipgrep
+#
+# Purpose   : Execute a "-ipgrep" option.
+#
+# Inputs    : (none)
+#
+# Output    : matching lines
+#
+# Returns   : If no I/O problems Then 1 Else 0
+#
+# Example   : $status = run_ipgrep();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_ipgrep
+{
+	my ( @records , $buffer , $save , $handle );
+	
+	unless ( open($handle,"<$entry_path") ) {
+		warn("open failed for '$entry_path' : $!\n");
+		return 0;
+	} # UNLESS
+
+
+	while ( $buffer = <$handle> ) {
+		$save = $buffer;
+		$buffer = ":" . $buffer;
+		if ( $buffer =~ m/\D(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\D/gms ) {
+			print "$entry_path:$save";
+		} # IF
+	} # WHILE
+	close $handle;
+
+	return 1;
+} # end of run_ipgrep
+
+######################################################################
+#
 # Function  : run_wc
 #
 # Purpose   : Execute a "-wc" option.
@@ -1993,6 +2037,33 @@ sub run_expand
 
 ######################################################################
 #
+# Function  : run_notmine
+#
+# Purpose   : Execute a "-notmine" option.
+#
+# Inputs    : (none)
+#
+# Output    : name of current entry
+#
+# Returns   : 1
+#
+# Example   : $status = run_notmine();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_notmine
+{
+	my ( $status );
+
+	$status = ( $> == $entry_uid ) ? 0 : 1;
+	
+	return $status;
+} # end of run_notmine
+
+######################################################################
+#
 # Function  : ParseOptions
 #
 # Purpose   : Add a node to the list of options.
@@ -2158,6 +2229,7 @@ sub process_tree
 		unless ( $entry_lstat = lstat $entry_path ) {
 			die("lstat failed for '$entry_path' : $!\n");
 		} # UNLESS
+		$entry_uid = $entry_lstat->uid;
 		if ( -l $entry_path ) {
 			$entry_type = 'l';
 			if ( -d $entry_path && is_symlink_parent($entry_path) == 0 ) {
