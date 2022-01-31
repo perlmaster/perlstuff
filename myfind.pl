@@ -19,8 +19,7 @@ use Class::Struct;
 use Data::Dumper;
 use File::stat;
 use Fcntl;
-use filetest 'access';
-use File::Spec;
+use filetest 'access'; use File::Spec;
 use Cwd;
 use Sys::Hostname;
 use File::Basename;
@@ -89,6 +88,9 @@ use constant OPT_HLINE => 46;
 use constant OPT_IMAGE => 47;
 use constant OPT_IP_GREP => 47;
 use constant OPT_NOTMINE => 48;
+use constant OPT_COUNT => 49;
+use constant OPT_LSN => 50;
+use constant OPT_NUM_LINKS => 51;
 
 use constant OPT_DATA_NONE => 0;
 use constant OPT_DATA_STRING => 1;
@@ -113,6 +115,8 @@ my ( @find_options , $start_dir , $current_opt , $start_time , $end_time );
 my ( $int_start_time , $int_end_time , $int_elapsed_time );
 
 my %flags = ( "d" => 0 , "l" => -1 , "e" => 0 , "s" => 0 , "i" =>"" , "S" => 0 );
+my $count_flag = 0;
+my $entry_count = 0;
 my @prog_parms;
 
 my @months = ( "Jan" , "Feb" , "Mar" , "Apr" , "May" , "Jun" , "Jul" , "Aug" ,
@@ -142,6 +146,7 @@ my %options = (
 	"ls3" => [ "b" , OPT_LS3 , undef , \&validate_boolean , \&run_ls3 , "Display file attributes without owner or group or permissions" ] ,
 	"lsk" => [ "b" , OPT_LSK , undef , \&validate_boolean , \&run_lsk , "Display file attributes with file size in KB" ] ,
 	"lsm" => [ "b" , OPT_LSM , undef , \&validate_boolean , \&run_lsm , "Display file attributes with file size in MB" ] ,
+	"lsn" => [ "b" , OPT_LSM , undef , \&validate_boolean , \&run_lsn , "Display file attributes along with the number of links and inode number" ] ,
 	"grep" => [ "s" , OPT_GREP , undef , \&validate_string , \&run_grep , "Case sensitive search on file contents" ] ,
 	"igrep" => [ "s" , OPT_IGREP , undef , \&validate_string , \&run_igrep , "Case insensitive search on file contents" ] ,
 	"lgrep" => [ "s" , OPT_LGREP , undef , \&validate_string , \&run_lgrep , "List name of file matching pattern" ] ,
@@ -174,6 +179,8 @@ my %options = (
 	"hline" => [ "i" , OPT_HLINE , undef , \&validate_number , \&run_hline , "Display a horizontal line" ] ,
 	"ipgrep" => [ "b" , OPT_IP_GREP , undef , \&validate_boolean , \&run_ipgrep , "Search file contents for records with an ip address" ] ,
 	"notmine" => [ "b" , OPT_NOTMINE , undef , \&validate_boolean , \&run_notmine , "Check to see if the file is not owned by the effective userid" ] ,
+	"count" => [ "b" , OPT_COUNT , undef , \&validate_boolean , \&run_count , "Count matched entries" ] ,
+	"numlinks" => [ "i" , OPT_NUM_LINKS , undef , \&validate_number , \&run_numlinks , "Look for files that do not have the specified number of links" ] ,
 ) ;
 
 my $num_dirs_processed = 0;
@@ -844,6 +851,34 @@ sub run_ls
 
 	return 1;
 } # end of run_ls
+
+######################################################################
+#
+# Function  : run_lsn
+#
+# Purpose   : Execute a "-lsn" option.
+#
+# Inputs    : (none)
+#
+# Output    : Information for current file
+#
+# Returns   : 1
+#
+# Example   : $status = run_lsn();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_lsn
+{
+	my ( %opt );
+
+	%opt = ( "l" => 1 , "g" => 0 , "o" => 0 , "k" => 0 , "n" => 1 , "i" => 1 );
+	list_file_info_full($entry_path,\%opt);
+
+	return 1;
+} # end of run_lsn
 
 ######################################################################
 #
@@ -2064,6 +2099,62 @@ sub run_notmine
 
 ######################################################################
 #
+# Function  : run_count
+#
+# Purpose   : Execute a "-count" option.
+#
+# Inputs    : (none)
+#
+# Output    : name of current entry
+#
+# Returns   : 1
+#
+# Example   : $status = run_count();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_count
+{
+	my ( $status );
+	
+	$entry_count += 1;
+	$count_flag = 1;
+
+	return 1;
+} # end of run_print
+
+######################################################################
+#
+# Function  : run_numlinks
+#
+# Purpose   : Execute a "-numlinks" option.
+#
+# Inputs    : $_[0] - number of links
+#
+# Output    : (none)
+#
+# Returns   : If file does not have the specified number of links THEN 1 Else 0
+#
+# Example   : $status = run_numlinks(1);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_numlinks
+{
+	my ( $num_links ) = @_;
+	my ( $status );
+
+	$status = ( $entry_lstat->nlink != $num_links ) ? 1 : 0;
+	
+	return $status;
+} # end of run_numlinks
+
+######################################################################
+#
 # Function  : ParseOptions
 #
 # Purpose   : Add a node to the list of options.
@@ -2333,6 +2424,11 @@ if ( $flags{"e"} ) {
 } # IF
 
 $status = process_tree($start_dir,0);
+
+if ( $count_flag ) {
+	print "\nentry count = $entry_count\n";
+} # IF
+
 $end_time = time;
 $int_end_time = [gettimeofday()];
 $int_elapsed_time = tv_interval($int_start_time,$int_end_time);
