@@ -2,7 +2,7 @@
 
 ######################################################################
 #
-# File      : find1.pl
+# File      : myfind.pl
 #
 # Author    : Barry Kimelman
 #
@@ -90,7 +90,14 @@ use constant OPT_IP_GREP => 47;
 use constant OPT_NOTMINE => 48;
 use constant OPT_COUNT => 49;
 use constant OPT_LSN => 50;
-use constant OPT_NUM_LINKS => 51;
+use constant OPT_NUM_LINKS_NE => 51;
+use constant OPT_PERL => 52;
+use constant OPT_HTML => 53;
+use constant OPT_BINARY => 54;
+use constant OPT_MTIME => 55;
+use constant OPT_CONTAINS => 56;
+use constant OPT_READONLY => 57;
+use constant OPT_LSD => 58;
 
 use constant OPT_DATA_NONE => 0;
 use constant OPT_DATA_STRING => 1;
@@ -138,7 +145,7 @@ my %options = (
 	"exactiname" => [ "s" , OPT_EXACTINAME , undef , \&validate_string , \&run_exactiname , "Case insensitive comnparison against entry name" ] ,
 	"ext" => [ "s" , OPT_EXT , undef , \&validate_string , \&run_ext , "check for filename extension" ] ,
 	"iname" => [ "s" , OPT_INAME , undef , \&validate_string , \&run_iname , "Case insensitive pattern match against entry name" ] ,
-	"type" => [ "s" , OPT_TYPE , undef , \&validate_string , \&run_type , "Test the entry file type" ] ,
+	"type" => [ "s" , OPT_TYPE , undef , \&validate_file_type , \&run_type , "Test the entry file type" ] ,
 	"delete" => [ "b" , OPT_DELETE , undef , \&validate_boolean , \&run_delete , "Delete a file with prompting" ],
 	"kill" => [ "b" , OPT_KILL , undef , \&validate_boolean , \&run_kill , "Delete a file without prompting" ] ,
 	"ls" => [ "b" , OPT_LS , undef , \&validate_boolean , \&run_ls , "Display file attributes" ] ,
@@ -171,16 +178,23 @@ my %options = (
 	"expand" => [ "i" , OPT_EXPAND , undef , \&validate_number , \&run_expand , "Expand tabs to spaces" ] ,
 	"hex" => [ "b" , OPT_HEXDUMP , undef , \&validate_boolean , \&run_hex , "Do a hex/char dump of a file" ] ,
 	"empty" => [ "b" , OPT_EMPTY , undef , \&validate_boolean , \&run_empty , "Test to see if a file is empty" ] ,
+	"perl" => [ "b" , OPT_PERL , undef , \&validate_boolean , \&run_perl , "Test to see if a file is a Perl file (*.pl , *.pm , *.cgi)" ] ,
+	"html" => [ "b" , OPT_PERL , undef , \&validate_boolean , \&run_html , "Test to see if a file is a HTML file (*.htm , *.html , *.css , *.js)" ] ,
 	"text" => [ "b" , OPT_TEXT , undef , \&validate_boolean , \&run_text , "Test to see if a file is a text file" ] ,
+	"readonly" => [ "b" , OPT_TEXT , undef , \&validate_boolean , \&run_readonly , "Test to see if a file is read-only" ] ,
+	"binary" => [ "b" , OPT_BINARY , undef , \&validate_boolean , \&run_binary , "Test to see if a file is not a text file" ] ,
 	"image" => [ "b" , OPT_IMAGE , undef , \&validate_boolean , \&run_image , "Test to see if a file is an image file" ] ,
 	"mingb" => [ "i" , OPT_MINGB , undef , \&validate_number , \&run_mingb , "Check file for minimum size in terms of GB" ] ,
-	"and" => [ "s" , OPT_AND , undef , \&validate_string , \&run_and , "Check to see if a file contains all of the double-colon-separated patterns (case insensitive)" ] ,
+	"and" => [ "s" , OPT_AND , undef , \&validate_string , \&run_and , "Check to see if a file contains all of the double-tilde-separated patterns (case insensitive)" ] ,
 	"listdir" => [ "b" , OPT_LISTDIR , undef , \&validate_boolean , \&run_listdir , "Display directory contents" ] ,
 	"hline" => [ "i" , OPT_HLINE , undef , \&validate_number , \&run_hline , "Display a horizontal line" ] ,
 	"ipgrep" => [ "b" , OPT_IP_GREP , undef , \&validate_boolean , \&run_ipgrep , "Search file contents for records with an ip address" ] ,
 	"notmine" => [ "b" , OPT_NOTMINE , undef , \&validate_boolean , \&run_notmine , "Check to see if the file is not owned by the effective userid" ] ,
 	"count" => [ "b" , OPT_COUNT , undef , \&validate_boolean , \&run_count , "Count matched entries" ] ,
-	"numlinks" => [ "i" , OPT_NUM_LINKS , undef , \&validate_number , \&run_numlinks , "Look for files that do not have the specified number of links" ] ,
+	"numlinks_ne" => [ "i" , OPT_NUM_LINKS_NE , undef , \&validate_number , \&run_numlinks_ne , "Look for files that do not have the specified number of links" ] ,
+	"mtime" => [ "s" , OPT_MTIME , undef , \&validate_mtime , \&run_mtime , "Check file for minimum size in terms of GB" ] ,
+	"contains" => [ "s" , OPT_CONTAINS , undef , \&validate_string , \&run_contains , "Case insensitive check to see if a file contains a pattern" ] ,
+	"lsd" => [ "b" , OPT_LSD , undef , \&validate_boolean , \&run_lsd , "Display entries under a directory" ] ,
 ) ;
 
 my $num_dirs_processed = 0;
@@ -189,6 +203,25 @@ my ( $bold , $normal );
 my $bold_color = 'white';
 my $options_text;
 my %img_extensions = ( "gif" => 0 , "jpg" => 0 , "jpeg" => 0 , "png" => 0 , "bmp" => 0 );
+
+my %valid_file_types = (
+    "b" => "block (buffered) special" ,
+    "c" => "character (unbuffered) special" ,
+    "d" => "directory" ,
+    "p" => "named pipe (FIFO)" ,
+    "f" => "regular file" ,
+    "l" => "symbolic link " ,
+    "s" => "socket"
+);
+
+my %perl_extensions = ( "pl" => 0 , "pm" => 0 , "cgi" => 0 );
+my %html_extensions = ( "htm" => 0 , "html" => 0 , "css" => 0 , "js" => 0 );
+my $min_sec = 60;
+my $hour_sec = 3600;
+my $day_sec = $hour_sec * 24;
+my $month_sec = $day_sec * 30;
+my $year_sec = $day_sec * 365;
+my %now = ();
 
 ######################################################################
 #
@@ -342,6 +375,71 @@ sub validate_string
 	$status = 1;
 	return $status;
 } # end of validate_string
+
+######################################################################
+#
+# Function  : validate_file_type
+#
+# Purpose   : Validate a file type value.
+#
+# Inputs    : $_[0] - file type
+#
+# Output    : (none)
+#
+# Returns   : If valid Then 1 Else 0
+#
+# Example   : validate_file_type($file_type);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub validate_file_type
+{
+	my ( $file_type ) = @_;
+	my ( $status );
+	
+	if ( exists $valid_file_types{$file_type} ) {
+		$status = 1;
+	} # IF
+	else {
+		$status = 0;
+		print "'$file_type' is not a valid value for '-type'\nValid values and their meaning are :\n";
+		foreach my $type ( keys %valid_file_types ) {
+			print "$type - $valid_file_types{$type}\n";
+		} # FOREACH
+	} # ELSE
+
+	return $status;
+} # end of validate_file_type
+
+######################################################################
+#
+# Function  : validate_mtime
+#
+# Purpose   : Validate a mtime value.
+#
+# Inputs    : $_[0] - mtime
+#
+# Output    : (none)
+#
+# Returns   : If valid Then 1 Else 0
+#
+# Example   : validate_mtime($mtime_value);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub validate_mtime
+{
+	my ( $mtime_value ) = @_;
+	my ( $status );
+
+	$status = ( $mtime_value =~ m/^\d+[mhdMy]$/ ) ? 1 : 0;
+
+	return $status;
+} # end of validate_mtime
 
 ######################################################################
 #
@@ -1024,7 +1122,7 @@ sub run_grep
 	@matches = grep /${pattern}/,@records;
 	close INPUT;
 	if ( 0 < scalar @matches ) {
-		print "\n",join("\n",map { "${entry_path}:$_" } @matches),"\n\n";
+		print "\n",join("\n",map { "${entry_path}:$_" } @matches),"\n";
 	} # IF
 	return 1;
 } # end of run_grep
@@ -1061,7 +1159,7 @@ sub run_igrep
 	@matches = grep /${pattern}/i,@records;
 	close INPUT;
 	if ( 0 < scalar @matches ) {
-		print "\n",join("\n",map { "${entry_path}:$_" } @matches),"\n\n";
+		print "\n",join("\n",map { "${entry_path}:$_" } @matches),"\n";
 	} # IF
 	return 1;
 } # end of run_igrep
@@ -1350,7 +1448,7 @@ sub run_notgrep
 #
 # Purpose   : Execute a "-and" option.
 #
-# Inputs    : $_[0] - string containing double colon separated list of patterns
+# Inputs    : $_[0] - string containing double tilde separated list of patterns
 #
 # Output    : matching lines
 #
@@ -1367,7 +1465,7 @@ sub run_and
 	my ( $pattern ) = @_;
 	my ( @patterns , @records , @matches , $num_patterns , $count , $index );
 	
-	@patterns = split(/::/,$pattern);
+	@patterns = split(/~~/,$pattern);
 	$num_patterns = scalar @patterns;
 
 	unless ( open(INPUT,"<$entry_path") ) {
@@ -1922,6 +2020,74 @@ sub run_empty
 
 ######################################################################
 #
+# Function  : run_perl
+#
+# Purpose   : Execute a "-perl" option.
+#
+# Inputs    : (none)
+#
+# Output    : (none)
+#
+# Returns   : If file is a perl file Then 1 Else 0
+#
+# Example   : $status = run_perl();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_perl
+{
+	my ( $status , @parts , $ext );
+
+	$status = 0;
+	if ( $entry_name =~ m/\./ ) {
+		@parts = split(/\./,$entry_name);
+		$ext = $parts[$#parts];
+		if ( exists $perl_extensions{lc $ext} ) {
+			$status = 1;
+		} # IF
+	} # IF
+	
+	return $status;
+} # end of run_perl
+
+######################################################################
+#
+# Function  : run_html
+#
+# Purpose   : Execute a "-html" option.
+#
+# Inputs    : (none)
+#
+# Output    : (none)
+#
+# Returns   : If file is a html file Then 1 Else 0
+#
+# Example   : $status = run_html();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_html
+{
+	my ( $status , @parts , $ext );
+
+	$status = 0;
+	if ( $entry_name =~ m/\./ ) {
+		@parts = split(/\./,$entry_name);
+		$ext = $parts[$#parts];
+		if ( exists $html_extensions{lc $ext} ) {
+			$status = 1;
+		} # IF
+	} # IF
+	
+	return $status;
+} # end of run_html
+
+######################################################################
+#
 # Function  : run_text
 #
 # Purpose   : Execute a "-text" option.
@@ -1946,6 +2112,63 @@ sub run_text
 	
 	return $status;
 } # end of run_text
+
+######################################################################
+#
+# Function  : run_readonly
+#
+# Purpose   : Execute a "-readonly" option.
+#
+# Inputs    : (none)
+#
+# Output    : (none)
+#
+# Returns   : If file is read only Then 1 Else 0
+#
+# Example   : $status = run_readonly();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_readonly
+{
+	my ( $status );
+
+	$status = ( ! -w $entry_path ) ? 1 : 0;
+	
+	return $status;
+} # end of run_readonly
+
+######################################################################
+#
+# Function  : run_binary
+#
+# Purpose   : Execute a "-binary" option.
+#
+# Inputs    : (none)
+#
+# Output    : (none)
+#
+# Returns   : If file is a binary file Then 1 Else 0
+#
+# Example   : $status = run_binary();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_binary
+{
+	my ( $status );
+
+	$status = 0;
+	unless ( -d $entry_path ) {
+		$status = ( -T $entry_path ) ? 0 : 1;
+	} # UNLESS
+	
+	return $status;
+} # end of run_binary
 
 ######################################################################
 #
@@ -2127,9 +2350,9 @@ sub run_count
 
 ######################################################################
 #
-# Function  : run_numlinks
+# Function  : run_numlinks_ne
 #
-# Purpose   : Execute a "-numlinks" option.
+# Purpose   : Execute a "-numlinks_ne" option.
 #
 # Inputs    : $_[0] - number of links
 #
@@ -2137,13 +2360,13 @@ sub run_count
 #
 # Returns   : If file does not have the specified number of links THEN 1 Else 0
 #
-# Example   : $status = run_numlinks(1);
+# Example   : $status = run_numlinks_ne(1);
 #
 # Notes     : (none)
 #
 ######################################################################
 
-sub run_numlinks
+sub run_numlinks_ne
 {
 	my ( $num_links ) = @_;
 	my ( $status );
@@ -2151,7 +2374,153 @@ sub run_numlinks
 	$status = ( $entry_lstat->nlink != $num_links ) ? 1 : 0;
 	
 	return $status;
-} # end of run_numlinks
+} # end of run_numlinks_ne
+
+######################################################################
+#
+# Function  : run_mtime
+#
+# Purpose   : Execute a "-mtime" option.
+#
+# Inputs    : $_[0] - mtime specification ( \d+[m|h|d|M|y] )
+#
+# Output    : (none)
+#
+# Returns   : If file mtime meets mtime requirement Then 1 Else 0
+#
+# Example   : $status = run_mtime("10d");
+#
+# Notes     : (none)
+#
+######################################################################
+
+## $now{'clock'} = $clock;
+## $now{'sec'} = $sec;
+## $now{'min'} = $min;
+## $now{'hour'} = $hour;
+## $now{'mday'} = $mday;
+## $now{'mon'} = $mon;
+## $now{'year'} = $year + 1900;
+## $now{'wday'} = $wday;
+## $now{'yday'} = $yday;
+## $now{'isdst'} = $isdst;
+
+sub run_mtime
+{
+	my ( $mtime_spec ) = @_;
+	my ( $status , $count , $type , $entry_age_diff_seconds , $number );
+	my ( $sec , $min , $hour , $mday , $mon , $year , $wday , $yday , $isdst );
+
+	$status = 0;
+	$entry_age_diff_seconds = $now{'clock'} - $entry_lstat->mtime;
+	( $sec , $min , $hour , $mday , $mon , $year , $wday , $yday , $isdst ) =
+				localtime($entry_lstat->mtime);
+
+	$mtime_spec =~ m/^(\d+)(.)/;
+	$count = $1;
+	$type = $2;
+	if ( $type eq 'm' ) { # minutes ?
+		$number = ($entry_age_diff_seconds / $min_sec);
+	} elsif ( $type eq 'h' ) { # hours ?
+		$number = ($entry_age_diff_seconds / $hour_sec);
+	} elsif ( $type eq 'd' ) { # days ?
+		$number = ($entry_age_diff_seconds / $day_sec);
+	} elsif ( $type eq 'M' ) { # months ?
+		$number = ($entry_age_diff_seconds / $month_sec);
+	} else { # must be years
+		$number = ($entry_age_diff_seconds / $year_sec);
+	} # ELSE
+	$status = ($number <= $count) ? 1 : 0;
+	
+	return $status;
+} # end of run_mtime
+
+######################################################################
+#
+# Function  : run_contains
+#
+# Purpose   : Execute a "-contains" option.
+#
+# Inputs    : $_[0] - pattern
+#
+# Output    : (none)
+#
+# Returns   : IF problem THEN 0 ELSEIF if not-found THEN 0 ELSE 1
+#
+# Example   : $status = run_contains();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_contains
+{
+	my ( $pattern ) = @_;
+	my ( $buffer , $status , $handle );
+	
+	unless ( open($handle,"<$entry_path") ) {
+		warn("open failed for '$entry_path' : $!\n");
+		return 0;
+	} # UNLESS
+
+	$status = 0;
+	while ( $buffer = <$handle> ) {
+		chomp $buffer;
+		if ( $buffer =~ m/${pattern}/i ) {
+			$status = 1;
+			last;
+		} # IF
+	} # WHILE
+	close $handle;
+
+	return $status;
+} # end of run_contains
+
+######################################################################
+#
+# Function  : run_lsd
+#
+# Purpose   : Execute a "-lsd" option.
+#
+# Inputs    : (none)
+#
+# Output    : name of current entry
+#
+# Returns   : 1
+#
+# Example   : $status = run_lsd();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_lsd
+{
+	my ( $status , $handle , $path , %entries , %opt );
+
+	$status = 0;
+	print "\nList information for files under $entry_path\n";
+	if ( $entry_type eq 'd' ) {
+		if ( opendir($handle,"$entry_path") ) {
+			%entries = map { $_ , 0 } readdir $handle;
+			closedir $handle;
+			foreach my $entry ( sort { lc $a cmp lc $b } keys %entries ) {
+				$path = File::Spec->catfile($entry_path,$entry);
+				%opt = ( "l" => 1 , "g" => 0 , "o" => 0 , "k" => 1 );
+				list_file_info_full($path,\%opt);
+			} # FOREACH
+			$status = 1;
+		} # IF
+		else {
+			warn("opendir failed for '$entry_path' : $!\n");
+		} # ELSE
+	} # IF
+	else {
+		print "$entry_path is not a directory\n";
+	} # ELSE
+
+	return $status;
+} # end of run_lsd
 
 ######################################################################
 #
@@ -2377,7 +2746,7 @@ sub process_tree
 #
 # Returns   : 0 --> success , non-zero --> failure
 #
-# Example   : find1.pl . -type f -print
+# Example   : myfind.pl . -type f -print
 #
 # Notes     : (none)
 #
@@ -2386,14 +2755,28 @@ sub process_tree
 MAIN:
 {
 my ( $status , $count , $startdir , $buffer , $hostname , $message );
+my ( $clock , $sec , $min , $hour , $mday , $mon , $year , $wday , $yday , $isdst );
+
+$clock = time();
+( $sec , $min , $hour , $mday , $mon , $year , $wday , $yday , $isdst ) = localtime($clock);
+$now{'clock'} = $clock;
+$now{'sec'} = $sec;
+$now{'min'} = $min;
+$now{'hour'} = $hour;
+$now{'mday'} = $mday;
+$now{'mon'} = $mon;
+$now{'year'} = $year + 1900;
+$now{'wday'} = $wday;
+$now{'yday'} = $yday;
+$now{'isdst'} = $isdst;
 
 build_options();
 
 @prog_parms = @ARGV;
 $count = scalar @ARGV;
 if ( $count > 0 && ($ARGV[0] eq "-help" || $ARGV[0] eq "-h") ) {
-	display_pod_help($0);
-	print "$options_text\n";
+	system("pod2text $0");
+	print "\nSupported Options are :\n\n$options_text\n";
 	exit 0;
 } # IF
 
@@ -2470,7 +2853,7 @@ Perl version of UNIX find command
 
 =head1 EXAMPLES
 
-myfind.pl
+myfind.pl . -type d -ls2
 
 =head1 EXIT STATUS
 
