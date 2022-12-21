@@ -66,5 +66,6 @@ extract-ip.pl - extract all the IPV4 addresses from a text file
 translate_wide_ascii_characters.pl - Translate wide ascii characters (e.g. value > 0x7f) into a printable format
 find-img-tags.pl - find the <IMG> tags in an html file
 noext3.pl - list information for files with no extension
+run-query.pl - run a query on a mysql database table
 
 the other files in this repository are files that are "required" by the above named scripts
