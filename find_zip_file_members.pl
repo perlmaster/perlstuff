@@ -1,4 +1,4 @@
-#!C:\Perl64\bin\perl.exe -w
+#!/usr/bin/perl -w
 
 ######################################################################
 #
@@ -74,7 +74,7 @@ sub find_zip_file_members
 {
 	my ( $zipfile , $ref_members , $ref_names , $ref_errmsg ) = @_;
 	my ( @members , $num_members , $num_matched , $bin_time );
-	my ( $status , $filename , $td , $zip , $bytes );
+	my ( $status , $filename , $td , $zip , $bytes , $attr );
 
 #                   'externalFileName' => 'foo.zip',
 #                   'fileName' => 'charset.conv',
@@ -92,6 +92,8 @@ sub find_zip_file_members
 	foreach my $element( @members ) {
 		$status += 1;
 		$filename = $element->{'fileName'};
+		$attr = $element->unixFileAttributes(); # get UNIX file attributes
+
 		push @$ref_names,$filename;
 		$bytes = $element->{'uncompressedSize'};
 		$num_matched += 1;
@@ -100,6 +102,7 @@ sub find_zip_file_members
 		$ref_members->{$filename}{'size'} = $bytes;
 		$ref_members->{$filename}{'date'} = $td;
 		$ref_members->{$filename}{'clock'} = $bin_time;
+		$ref_members->{$filename}{'attr'} = $attr;
 	} # FOREACH
 
 	return $zip;
