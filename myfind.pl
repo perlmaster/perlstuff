@@ -98,6 +98,8 @@ use constant OPT_MTIME => 55;
 use constant OPT_CONTAINS => 56;
 use constant OPT_READONLY => 57;
 use constant OPT_LSD => 58;
+use constant OPT_FUNKY => 59;
+use constant OPT_AGE => 59;
 
 use constant OPT_DATA_NONE => 0;
 use constant OPT_DATA_STRING => 1;
@@ -139,6 +141,8 @@ my %options = (
 	"ignoredir" => [ "s" , OPT_IGNOREDIR , \$flags{'i'} , \&validate_string , undef , "Ignore directories matching the specified pattern" ] ,
 
 	"print" => [ "b" , OPT_PRINT , undef , \&validate_boolean , \&run_print , "Display entry name" ] ,
+	"age" => [ "b" , OPT_AGE , undef , \&validate_boolean , \&run_age , "Display age of file" ] ,
+	"funky" => [ "b" , OPT_FUNKY , undef , \&validate_boolean , \&run_funky , "Find funky filenames" ] ,
 	"newline" => [ "b" , OPT_NEWLINE , undef , \&validate_boolean , \&run_newline , "Print a blank line" ] ,
 	"name" => [ "s" , OPT_NAME , undef , \&validate_string , \&run_name , "Case sensitive pattern match against entry name" ] ,
 	"exactname" => [ "s" , OPT_EXACTNAME , undef , \&validate_string , \&run_exactname , "Case sensitive comnparison against entry name" ] ,
@@ -186,7 +190,7 @@ my %options = (
 	"image" => [ "b" , OPT_IMAGE , undef , \&validate_boolean , \&run_image , "Test to see if a file is an image file" ] ,
 	"mingb" => [ "i" , OPT_MINGB , undef , \&validate_number , \&run_mingb , "Check file for minimum size in terms of GB" ] ,
 	"and" => [ "s" , OPT_AND , undef , \&validate_string , \&run_and , "Check to see if a file contains all of the double-tilde-separated patterns (case insensitive)" ] ,
-	"listdir" => [ "b" , OPT_LISTDIR , undef , \&validate_boolean , \&run_listdir , "Display directory contents" ] ,
+	"listdir" => [ "b" , OPT_LISTDIR , undef , \&validate_boolean , \&run_listdir , "Display directory contents similar to 'ls -C'" ] ,
 	"hline" => [ "i" , OPT_HLINE , undef , \&validate_number , \&run_hline , "Display a horizontal line" ] ,
 	"ipgrep" => [ "b" , OPT_IP_GREP , undef , \&validate_boolean , \&run_ipgrep , "Search file contents for records with an ip address" ] ,
 	"notmine" => [ "b" , OPT_NOTMINE , undef , \&validate_boolean , \&run_notmine , "Check to see if the file is not owned by the effective userid" ] ,
@@ -194,7 +198,7 @@ my %options = (
 	"numlinks_ne" => [ "i" , OPT_NUM_LINKS_NE , undef , \&validate_number , \&run_numlinks_ne , "Look for files that do not have the specified number of links" ] ,
 	"mtime" => [ "s" , OPT_MTIME , undef , \&validate_mtime , \&run_mtime , "Check file for minimum size in terms of GB" ] ,
 	"contains" => [ "s" , OPT_CONTAINS , undef , \&validate_string , \&run_contains , "Case insensitive check to see if a file contains a pattern" ] ,
-	"lsd" => [ "b" , OPT_LSD , undef , \&validate_boolean , \&run_lsd , "Display entries under a directory" ] ,
+	"lsd" => [ "b" , OPT_LSD , undef , \&validate_boolean , \&run_lsd , "Display entries under a directory similar to 'ls -l'" ] ,
 ) ;
 
 my $num_dirs_processed = 0;
@@ -470,6 +474,74 @@ sub run_print
 
 ######################################################################
 #
+# Function  : run_age
+#
+# Purpose   : Execute a "-age" option.
+#
+# Inputs    : (none)
+#
+# Output    : age of current entry
+#
+# Returns   : 1
+#
+# Example   : $status = run_age();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_age
+{
+	my ( $status , $clock , $diff , $buffer );
+
+	# print "$entry_path\n";
+	$clock = time();
+	$diff = $clock - $entry_lstat->mtime;
+	$buffer = format_seconds($diff);
+	print "Age of $entry_path is $buffer\n";
+
+	$status = 1;
+	return $status;
+} # end of run_age
+
+######################################################################
+#
+# Function  : format_seconds
+#
+# Purpose   : Format a binary number of seconds into a message
+#
+# Inputs    : $_[0] - number of seconds
+#
+# Output    : (none)
+#
+# Returns   : Formatted string
+#
+# Example   : $buffer = format_seconds($count);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub format_seconds
+{
+	my ( $seconds ) = @_;
+	my ( $buffer , $mins );
+
+	if ( $seconds < $min_sec ) {
+		$buffer = "$seconds seconds";
+	} elsif ( $seconds < $hour_sec ) {
+		$buffer = sprintf "%.2f minutes",$seconds / $min_sec;
+	} elsif ( $seconds < $day_sec ) {
+		$buffer = sprintf "%.2f hours",$seconds / $hour_sec;
+	} else {
+		$buffer = sprintf "%.2f hours",$seconds / $day_sec;
+	} # ELSE
+
+	return $buffer;
+} # end of format_seconds
+
+######################################################################
+#
 # Function  : dump_class
 #
 # Purpose   : List the members of a class list.
@@ -536,13 +608,13 @@ sub dump_class
 sub run_listdir
 {
 	my ( $status , %entries , $path );
-	my ( @files , @dirs , @symlinks , @fifo , @sockets , @blocks , @chars , @misc );
+	my ( @files , @dirs , @symlinks , @fifo , @sockets , @blocks , @chars , @misc , $handle );
 	
 	## print "$entry_path\n";
-	if ( opendir(DIR,"$entry_path") ) {
+	if ( opendir($handle,"$entry_path") ) {
 		$status = 1;
-		%entries = map { $_ , 0 } readdir DIR;
-		closedir DIR;
+		%entries = map { $_ , 0 } readdir $handle;
+		closedir $handle;
 		delete $entries{".."};
 		delete $entries{"."};
 		@files = ();
@@ -2524,6 +2596,40 @@ sub run_lsd
 
 ######################################################################
 #
+# Function  : run_funky
+#
+# Purpose   : Execute a "-funky" option.
+#
+# Inputs    : (none)
+#
+# Output    : name of current entry
+#
+# Returns   : 1
+#
+# Example   : $status = run_funky();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_funky
+{
+	my ( $status );
+
+#	@funky = grep /[^\w\-\.]/,sort { lc $a cmp lc $b } keys %entries;
+
+	if ( $entry_name =~ m/[^\w\-\.]/ ) {
+		$status = 1;
+	} # IF
+	else {
+		$status = 0;
+	} # ELSE
+
+	return $status;
+} # end of run_funky
+
+######################################################################
+#
 # Function  : ParseOptions
 #
 # Purpose   : Add a node to the list of options.
@@ -2651,7 +2757,7 @@ sub process_tree
 {
 	my ( $dirpath , $dir_level ) = @_;
 	my ( $path , $status , @entries , @subdirs , $opcode , $func , $value );
-	my ( $count , %entries , $basename );
+	my ( $count , %entries , $basename , $handle );
 
 	if ( $flags{'i'} ne "" ) {
 		$basename = basename($dirpath);
@@ -2672,16 +2778,16 @@ sub process_tree
 		return 1;
 	} # IF
 
-	unless ( opendir(DIR,"$dirpath") ) {
+	unless ( opendir($handle,"$dirpath") ) {
 		warn("opendir failed for '$dirpath' : $!\n");
 		return -1;
 	} # UNLESS
-	@entries = readdir DIR;
+	@entries = readdir $handle;
 	%entries = map { $_ , 1 } @entries;
 	delete $entries{"."};
 	delete $entries{".."};
 	@entries = keys %entries;
-	closedir DIR;
+	closedir $handle;
 
 	$status = 1;
 	foreach $entry_name ( @entries ) {
