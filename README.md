@@ -67,6 +67,7 @@ translate_wide_ascii_characters.pl - Translate wide ascii characters (e.g. value
 find-img-tags.pl - find the <IMG> tags in an html file
 noext3.pl - list information for files with no extension
 run-query.pl - run a query on a mysql database table
-  find-class.pl - Find *.class files in directories and jar files specified by CLASSPATH
+find-class.pl - Find *.class files in directories and jar files specified by CLASSPATH
+follow.pl - resolve symbolic links until you get to the final path
 
 the other files in this repository are files that are "required" by the above named scripts
