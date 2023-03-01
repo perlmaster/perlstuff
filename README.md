@@ -69,5 +69,6 @@ noext3.pl - list information for files with no extension
 run-query.pl - run a query on a mysql database table
 find-class.pl - Find *.class files in directories and jar files specified by CLASSPATH
 follow.pl - resolve symbolic links until you get to the final path
+tput-size.pl - use the tput command to determine the size of the terminal
 
 the other files in this repository are files that are "required" by the above named scripts
