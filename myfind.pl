@@ -19,7 +19,8 @@ use Class::Struct;
 use Data::Dumper;
 use File::stat;
 use Fcntl;
-use filetest 'access'; use File::Spec;
+use filetest 'access';
+use File::Spec;
 use Cwd;
 use Sys::Hostname;
 use File::Basename;
@@ -37,6 +38,7 @@ require "elapsed_interval_time.pl";
 require "display_pod_help.pl";
 require "stack_backtrace.pl";
 require "is_symlink_parent.pl";
+require "compute_file_age.pl";
 
 use constant OPT_PRINT => 0;
 use constant OPT_NAME => 1;
@@ -100,6 +102,7 @@ use constant OPT_READONLY => 57;
 use constant OPT_LSD => 58;
 use constant OPT_FUNKY => 59;
 use constant OPT_AGE => 59;
+use constant OPT_AGE_2 => 60;
 
 use constant OPT_DATA_NONE => 0;
 use constant OPT_DATA_STRING => 1;
@@ -141,7 +144,8 @@ my %options = (
 	"ignoredir" => [ "s" , OPT_IGNOREDIR , \$flags{'i'} , \&validate_string , undef , "Ignore directories matching the specified pattern" ] ,
 
 	"print" => [ "b" , OPT_PRINT , undef , \&validate_boolean , \&run_print , "Display entry name" ] ,
-	"age" => [ "b" , OPT_AGE , undef , \&validate_boolean , \&run_age , "Display age of file" ] ,
+	"age" => [ "b" , OPT_AGE , undef , \&validate_boolean , \&run_age , "Display age of file in terms of hours" ] ,
+	"age2" => [ "b" , OPT_AGE_2 , undef , \&validate_boolean , \&run_age_2 , "Display age of file in terms of days/hours/minutes/seconds" ] ,
 	"funky" => [ "b" , OPT_FUNKY , undef , \&validate_boolean , \&run_funky , "Find funky filenames" ] ,
 	"newline" => [ "b" , OPT_NEWLINE , undef , \&validate_boolean , \&run_newline , "Print a blank line" ] ,
 	"name" => [ "s" , OPT_NAME , undef , \&validate_string , \&run_name , "Case sensitive pattern match against entry name" ] ,
@@ -503,6 +507,43 @@ sub run_age
 	$status = 1;
 	return $status;
 } # end of run_age
+
+######################################################################
+#
+# Function  : run_age_2
+#
+# Purpose   : Execute a "-age2" option.
+#
+# Inputs    : (none)
+#
+# Output    : age of current entry
+#
+# Returns   : 1
+#
+# Example   : $status = run_age_2();
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_age_2
+{
+	my ( $status , $age , %age );
+
+	# print "$entry_path\n";
+
+	$age = compute_file_age($entry_path,\%age);
+
+	if ( defined $age ) {
+		$status = 1;
+		print "Age of $entry_path is $age\n";
+	} # IF
+	else {
+		$status = 0;
+	} # ELSE
+
+	return $status;
+} # end of run_age_2
 
 ######################################################################
 #
