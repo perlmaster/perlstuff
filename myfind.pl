@@ -25,6 +25,7 @@ use Cwd;
 use Sys::Hostname;
 use File::Basename;
 use Time::HiRes qw(gettimeofday tv_interval);
+use File::Copy;
 use FindBin;
 use lib $FindBin::Bin;
 use ANSIColor;
@@ -101,8 +102,9 @@ use constant OPT_CONTAINS => 56;
 use constant OPT_READONLY => 57;
 use constant OPT_LSD => 58;
 use constant OPT_FUNKY => 59;
-use constant OPT_AGE => 59;
-use constant OPT_AGE_2 => 60;
+use constant OPT_AGE => 60;
+use constant OPT_AGE_2 => 61;
+use constant OPT_COPYDIR => 62;
 
 use constant OPT_DATA_NONE => 0;
 use constant OPT_DATA_STRING => 1;
@@ -203,6 +205,7 @@ my %options = (
 	"mtime" => [ "s" , OPT_MTIME , undef , \&validate_mtime , \&run_mtime , "Check file for minimum size in terms of GB" ] ,
 	"contains" => [ "s" , OPT_CONTAINS , undef , \&validate_string , \&run_contains , "Case insensitive check to see if a file contains a pattern" ] ,
 	"lsd" => [ "b" , OPT_LSD , undef , \&validate_boolean , \&run_lsd , "Display entries under a directory similar to 'ls -l'" ] ,
+	"copydir" => [ "s" , OPT_COPYDIR , undef , \&validate_dirname , \&run_copydir , "Copy the entry to the specified directory" ] ,
 ) ;
 
 my $num_dirs_processed = 0;
@@ -448,6 +451,39 @@ sub validate_mtime
 
 	return $status;
 } # end of validate_mtime
+
+######################################################################
+#
+# Function  : validate_dirname
+#
+# Purpose   : Validate that a string represents an existing directory
+#
+# Inputs    : $_[0] - character string
+#
+# Output    : (none)
+#
+# Returns   : If valid Then 1 Else 0
+#
+# Example   : validate_dirname($dirname);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub validate_dirname
+{
+	my ( $dirname ) = @_;
+	my ( $status );
+
+	if ( -d $dirname ) {
+		$status = 1;
+	} # IF
+	else {
+		$status = 0;
+	} # ELSE
+	
+	return $status;
+} # end of validate_dirname
 
 ######################################################################
 #
@@ -2668,6 +2704,42 @@ sub run_funky
 
 	return $status;
 } # end of run_funky
+
+######################################################################
+#
+# Function  : run_copydir
+#
+# Purpose   : Execute a "-copydir" option.
+#
+# Inputs    : $_[0] - destination directory
+#
+# Output    : (none)
+#
+# Returns   : If copy succeeds Then 1 Else 0
+#
+# Example   : $status = run_copydir($dirname);
+#
+# Notes     : (none)
+#
+######################################################################
+
+sub run_copydir
+{
+	my ( $dirname ) = @_;
+	my ( $status , $path );
+
+	$path = File::Spec->catfile($dirname,$entry_name);
+	print "Copy $entry_path to $path\n";
+	unless ( copy($entry_path,$path) ) {
+		warn("Copy of $entry_path to $path failed : $!\n");
+		$status = 0;
+	} # UNLESS
+	else {
+		$status = 1;
+	} # ELSE
+
+	return $status;
+} # end of run_copydir
 
 ######################################################################
 #
