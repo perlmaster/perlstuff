@@ -70,6 +70,8 @@ run-query.pl - run a query on a mysql database table
 find-class.pl - Find *.class files in directories and jar files specified by CLASSPATH
 follow-symlinks.pl - resolve symbolic links until you get to the final path
 tput-size.pl - use the tput command to determine the size of the terminal
-compute_file_age.pl - compute the age of a file
+compute_file_age.pl - compute the age of a file using Date::Calc
+get_file_age.pl - determine age of a file
+file_age.pl - display ages of files
 
 the other files in this repository are files that are "required" by the above named scripts
