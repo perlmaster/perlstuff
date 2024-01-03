@@ -162,7 +162,6 @@ my %options = (
 	"ls2" => [ "b" , OPT_LS2 , undef , \&validate_boolean , \&run_ls2 , "Display file attributes without owner or group" ] ,
 	"ls3" => [ "b" , OPT_LS3 , undef , \&validate_boolean , \&run_ls3 , "Display file attributes without owner or group or permissions" ] ,
 	"lsk" => [ "b" , OPT_LSK , undef , \&validate_boolean , \&run_lsk , "Display file attributes with file size in KB" ] ,
-	"lsm" => [ "b" , OPT_LSM , undef , \&validate_boolean , \&run_lsm , "Display file attributes with file size in MB" ] ,
 	"lsn" => [ "b" , OPT_LSM , undef , \&validate_boolean , \&run_lsn , "Display file attributes along with the number of links and inode number" ] ,
 	"grep" => [ "s" , OPT_GREP , undef , \&validate_string , \&run_grep , "Case sensitive search on file contents" ] ,
 	"igrep" => [ "s" , OPT_IGREP , undef , \&validate_string , \&run_igrep , "Case insensitive search on file contents" ] ,
@@ -611,7 +610,7 @@ sub format_seconds
 	} elsif ( $seconds < $day_sec ) {
 		$buffer = sprintf "%.2f hours",$seconds / $hour_sec;
 	} else {
-		$buffer = sprintf "%.2f hours",$seconds / $day_sec;
+		$buffer = sprintf "%.2f days",$seconds / $day_sec;
 	} # ELSE
 
 	return $buffer;
